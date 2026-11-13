@@ -179,11 +179,13 @@ export function MeshCalculatorView() {
 
     for (let i = 1; i <= cantidadNodos; i++) {
       const hexIdx = i.toString(16).toUpperCase().padStart(2, '0');
+      const macNodo =
+        i === 1 && prefijo === 'GRUPO' ? 'A4:CF:12:FE:F2:CC' : `24:6F:28:AA:01:${hexIdx}`;
       plantillaBase.push({
         id: genId(),
         nombre: `${prefijo}_${i}`,
         rol: 'INVERNADERO',
-        mac: `24:6F:28:AA:01:${hexIdx}`,
+        mac: macNodo,
         rsa: null,
       });
     }
