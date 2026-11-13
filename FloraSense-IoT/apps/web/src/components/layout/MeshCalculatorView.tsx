@@ -140,6 +140,49 @@ async function generarClavesRSAParaNodo(bits: number): Promise<RsaKeyParts> {
   };
 }
 
+const MESH_STORAGE_KEY = 'florasense_mesh_nodes_v1';
+
+function serializeNodes(list: MeshNode[]) {
+  return JSON.stringify(
+    list.map((n) => ({
+      ...n,
+      rsa: n.rsa
+        ? {
+            n: Array.from(n.rsa.n),
+            p: Array.from(n.rsa.p),
+            q: Array.from(n.rsa.q),
+            dp: Array.from(n.rsa.dp),
+            dq: Array.from(n.rsa.dq),
+            qi: Array.from(n.rsa.qi),
+          }
+        : null,
+    })),
+  );
+}
+
+function deserializeNodes(raw: string | null): MeshNode[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed.map((n: any) => ({
+      ...n,
+      rsa: n.rsa
+        ? {
+            n: new Uint8Array(n.rsa.n),
+            p: new Uint8Array(n.rsa.p),
+            q: new Uint8Array(n.rsa.q),
+            dp: new Uint8Array(n.rsa.dp),
+            dq: new Uint8Array(n.rsa.dq),
+            qi: new Uint8Array(n.rsa.qi),
+          }
+        : null,
+    }));
+  } catch {
+    return null;
+  }
+}
+
 export function MeshCalculatorView() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [meshChannel, setMeshChannel] = useState<string>('6');
@@ -207,9 +250,25 @@ export function MeshCalculatorView() {
 
   useEffect(() => {
     if (isAuthenticated && nodos.length === 0) {
-      cargarPlantilla(3, 'GRUPO');
+      const saved = deserializeNodes(safeGetItem(MESH_STORAGE_KEY));
+      if (saved && saved.length > 0) {
+        setNodos(saved);
+        setSelectedNodoId(saved[0].id);
+        setInputNombre(`GRUPO_${saved.length}`);
+        setInputMac(crearMacEspressif(saved.length + 1));
+      } else {
+        cargarPlantilla(3, 'GRUPO');
+      }
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (nodos.length > 0 && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(MESH_STORAGE_KEY, serializeNodes(nodos));
+      } catch {}
+    }
+  }, [nodos]);
 
   const recalcularTodasLasClaves = async (bitsOverride?: number) => {
     if (generando || nodos.length === 0) return;

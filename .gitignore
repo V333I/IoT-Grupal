@@ -15,6 +15,7 @@ build_output/
 .env.*
 !.env.example
 keys/
+arduino_local_keys/
 *.pem
 *.key
 *.crt
