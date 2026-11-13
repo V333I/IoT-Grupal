@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculadora RSA + MAC | Red Mesh NodeMCU (ESP8266)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #0b1120;
+      color: #e2e8f0;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans antialiased selection:bg-emerald-500 selection:text-white">
+
+  <!-- Barra Superior -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <svg class="w-6 h-6 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            Calculadora Criptográfica NodeMCU Mesh
+            <span class="text-xs font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">RSA + AES-256</span>
+          </h1>
+          <p class="text-xs text-slate-400">Generador de claves públicas/privadas BearSSL por MAC física y código Arduino para Invernaderos</p>
+        </div>
+      </div>
+
+      <!-- Botones de Plantilla Rápida -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="cargarPlantilla(3, 'GRUPO')" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
+          <span>👥</span> Concentrador + 3 Grupos
+        </button>
+        <button onclick="cargarPlantilla(10, 'INVERNADERO')" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-950/60 hover:bg-emerald-900/70 text-emerald-300 border border-emerald-700/50 transition flex items-center gap-1.5">
+          <span>🏗️</span> Diagrama Completo (10 Invernaderos)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenido Principal -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+    
+    <!-- Columna Izquierda: Configuración de Nodos y Parámetros (5 cols) -->
+    <section class="lg:col-span-5 flex flex-col gap-5">
+      
+      <!-- Tarjeta de Parámetros de Red y Cifrado -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          1. Parámetros Radio Mesh y BearSSL
+        </h2>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1.5 font-medium">Canal Wi-Fi / ESP-NOW</label>
+            <select id="meshChannel" onchange="actualizarMetricas()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <option value="1">Canal 1 (2412 MHz)</option>
+              <option value="6" selected>Canal 6 (2437 MHz - Recomendado)</option>
+              <option value="11">Canal 11 (2462 MHz)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-400 mb-1.5 font-medium">Tamaño Clave RSA</label>
+            <select id="rsaBits" onchange="actualizarMetricas()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <option value="1024" selected>RSA-1024 (128 B - Cabe en ESP-NOW)</option>
+              <option value="2048">RSA-2048 (256 B - Requiere fragmentar)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Telemetría de Memoria y Paquete -->
+        <div class="mt-4 pt-4 border-t border-slate-800/80 grid grid-cols-3 gap-2 text-center">
+          <div class="bg-slate-950/90 p-2.5 rounded-xl border border-slate-800">
+            <span class="block text-[11px] text-slate-400">Total Nodos</span>
+            <span id="statNodos" class="text-base font-bold text-white font-mono">4</span>
+          </div>
+          <div class="bg-slate-950/90 p-2.5 rounded-xl border border-slate-800">
+            <span class="block text-[11px] text-slate-400">Flash PROGMEM</span>
+            <span id="statFlash" class="text-base font-bold text-cyan-400 font-mono">536 B</span>
+          </div>
+          <div class="bg-slate-950/90 p-2.5 rounded-xl border border-slate-800">
+            <span class="block text-[11px] text-slate-400">Trama Mesh</span>
+            <span id="statPacket" class="text-base font-bold text-emerald-400 font-mono">172 / 250 B</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formulario para Agregar Nuevo Nodo -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider mb-3 flex items-center justify-between">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            2. Agregar NodeMCU por MAC
+          </span>
+          <button onclick="autocompletarNuevoNodo()" class="text-xs text-cyan-400 hover:text-cyan-300 font-normal underline">
+            + Autocompletar siguiente
+          </button>
+        </h2>
+
+        <div class="space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Nombre Identificador</label>
+              <input id="inputNombre" type="text" placeholder="Ej. INVERNADERO_4" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Rol en la Red</label>
+              <select id="inputRol" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+                <option value="INVERNADERO">Nodo Invernadero (Sensor/Mesh)</option>
+                <option value="CONCENTRADOR">Concentrador Principal (Gateway)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Dirección MAC Física (WiFi.macAddress)</label>
+            <div class="flex gap-2">
+              <input id="inputMac" type="text" maxlength="17" placeholder="24:6F:28:AA:BB:04" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-emerald-300 font-mono uppercase focus:outline-none focus:border-emerald-500">
+              <button onclick="generarMacAleatoriaInput()" title="Generar MAC aleatoria de Espressif" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-medium transition">
+                🎲 MAC Azar
+              </button>
+            </div>
+            <p id="errorInput" class="text-xs text-rose-400 mt-1 hidden"></p>
+          </div>
+
+          <button onclick="agregarNodoManual()" class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm rounded-xl border border-slate-600 transition flex items-center justify-center gap-2">
+            <span>➕ Añadir a la lista de nodos</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Lista de Nodos Registrados -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex-1 flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider">
+            3. Nodos en la Malla (<span id="contadorLista">0</span>)
+          </h2>
+          <button onclick="recalcularTodasLasClaves()" id="btnGenerarClaves" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-600 hover:from-emerald-400 hover:to-cyan-500 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center gap-1.5">
+            <svg id="iconoGenerar" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span id="textoBotonGenerar">Regenerar Claves RSA</span>
+          </button>
+        </div>
+
+        <div id="listaNodosContainer" class="space-y-2 max-h-[340px] overflow-y-auto pr-1 flex-1">
+          <!-- Renderizado dinámico por JS -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Columna Derecha: Código C++ / Arduino Generado (7 cols) -->
+    <section class="lg:col-span-7 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+      
+      <!-- Pestañas de Archivos -->
+      <div class="border-b border-slate-800 bg-slate-950/60 px-4 pt-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex space-x-1" role="tablist">
+          <button onclick="cambiarTab('publico')" id="tab-publico" class="px-4 py-2.5 text-xs sm:text-sm font-medium rounded-t-xl border-t border-x border-slate-800 bg-slate-900 text-emerald-400 flex items-center gap-2">
+            <span>🌐</span> 1. directorio_publico.h
+          </button>
+          <button onclick="cambiarTab('privado')" id="tab-privado" class="px-4 py-2.5 text-xs sm:text-sm font-medium rounded-t-xl text-slate-400 hover:text-slate-200 flex items-center gap-2">
+            <span>🔑</span> 2. priv_&lt;NODO&gt;.h
+          </button>
+          <button onclick="cambiarTab('sketch')" id="tab-sketch" class="px-4 py-2.5 text-xs sm:text-sm font-medium rounded-t-xl text-slate-400 hover:text-slate-200 flex items-center gap-2">
+            <span>⚡</span> 3. Sketch Arduino (.ino)
+          </button>
+          <button onclick="cambiarTab('macscanner')" id="tab-macscanner" class="px-4 py-2.5 text-xs sm:text-sm font-medium rounded-t-xl text-slate-400 hover:text-slate-200 flex items-center gap-2">
+            <span>🔍</span> Leer MAC
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra de herramientas del visor de código -->
+      <div class="bg-slate-900/90 border-b border-slate-800 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        
+        <!-- Selector contextual para cuando está en la pestaña de clave privada o sketch -->
+        <div id="selectorNodoContainer" class="flex items-center gap-2">
+          <label class="text-xs text-slate-400 font-medium">Compilar para el nodo:</label>
+          <select id="selectNodoActivo" onchange="renderizarCodigoActivo()" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-emerald-300 font-mono focus:outline-none focus:border-emerald-500">
+          </select>
+        </div>
+
+        <div id="infoArchivoActual" class="text-xs text-slate-400 hidden sm:block">
+          Compartido en la memoria Flash de todos los NodeMCU
+        </div>
+
+        <div class="flex items-center gap-2 ml-auto">
+          <button onclick="copiarCodigoActual()" id="btnCopiar" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition flex items-center gap-1.5">
+            <span>📋</span> <span id="lblCopiar">Copiar Código</span>
+          </button>
+          <button onclick="descargarArchivoActual()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-semibold text-xs transition flex items-center gap-1.5">
+            <span>⬇️</span> Descargar Archivo
+          </button>
+        </div>
+      </div>
+
+      <!-- Banner explicativo según pestaña -->
+      <div id="bannerExplicacion" class="bg-emerald-950/30 border-b border-emerald-900/40 px-4 py-2.5 text-xs text-emerald-200/90 flex items-center gap-2">
+        <span>💡</span>
+        <span id="textoExplicacion">Este archivo contiene las MACs y Claves Públicas RSA de todos los nodos en el Canal 6. Todos los NodeMCU llevan exactamente este mismo archivo.</span>
+      </div>
+
+      <!-- Área de Código -->
+      <div class="relative flex-1 bg-[#070b14] overflow-hidden flex flex-col">
+        <pre class="flex-1 p-4 sm:p-5 overflow-auto text-xs sm:text-[13px] leading-relaxed font-mono text-slate-200 select-all"><code id="codeOutput">// Generando claves criptográficas RSA reales en tu navegador...</code></pre>
+      </div>
+
+      <!-- Pie del Editor: Resumen de arquitectura -->
+      <div class="bg-slate-950 border-t border-slate-800 px-4 py-3 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <span class="text-emerald-400 font-semibold">Cifrado Híbrido Activo:</span> Clave de sesión aleatoria de 256 bits cifrada con <code class="text-slate-300">RSA-OAEP (SHA-256)</code> + Datos de sensores con <code class="text-slate-300">AES-256-CBC</code>.
+        </div>
+        <div class="font-mono text-slate-500">BearSSL Native ESP8266 Core</div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // Estado global de la aplicación
+    let nodos = [];
+    let tabActual = 'publico';
+    let generando = false;
+
+    // Prefijos OUI reales de Espressif (NodeMCU ESP8266)
+    const ESPRESSIF_OUIS = [
+      [0x24, 0x6F, 0x28],
+      [0x84, 0xF3, 0xEB],
+      [0xCC, 0x50, 0xE3],
+      [0xEC, 0xFA, 0xBC]
+    ];
+
+    // Utilidad: Decodificar Base64URL (formato de WebCrypto JWK) a Uint8Array
+    function base64UrlToBytes(base64Url, targetLength) {
+      let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+      const raw = window.atob(base64);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) {
+        bytes[i] = raw.charCodeAt(i);
+      }
+      // Ajustar al tamaño exacto de bytes de BearSSL (rellenar con ceros a la izquierda o recortar ceros iniciales si existen)
+      if (!targetLength || bytes.length === targetLength) return bytes;
+      const result = new Uint8Array(targetLength);
+      if (bytes.length > targetLength) {
+        result.set(bytes.slice(bytes.length - targetLength));
+      } else {
+        result.set(bytes, targetLength - bytes.length);
+      }
+      return result;
+    }
+
+    // Utilidad: Formatear arreglo de bytes como hexadecimal de C++ (0xAA, 0xBB...)
+    function bytesToCHexArray(bytes,porLinea = 12, indent = "      ") {
+      const hexItems = Array.from(bytes).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0'));
+      const lines = [];
+      for (let i = 0; i < hexItems.length; i += porLinea) {
+        lines.push(indent + hexItems.slice(i, i + porLinea).join(', '));
+      }
+      return lines.join(',\n');
+    }
+
+    // Utilidad: Convertir string MAC "AA:BB:CC:DD:EE:FF" a "{0xAA, 0xBB, ...}"
+    function macToCHex(macStr) {
+      return macStr.split(':').map(h => '0x' + h.toUpperCase()).join(', ');
+    }
+
+    // Generar par de claves RSA real usando Web Crypto API
+    async function generarClavesRSAParaNodo(bits) {
+      const modBytes = bits / 8;
+      const primeBytes = modBytes / 2;
+
+      const keyPair = await window.crypto.subtle.generateKey(
+        {
+          name: "RSA-OAEP",
+          modulusLength: bits,
+          publicExponent: new Uint8Array([0x01, 0x00, 0x01]), // 65537
+          hash: "SHA-256"
+        },
+        true,
+        ["encrypt", "decrypt"]
+      );
+
+      const jwkPriv = await window.crypto.subtle.exportKey("jwk", keyPair.privateKey);
+
+      return {
+        n:  base64UrlToBytes(jwkPriv.n, modBytes),
+        p:  base64UrlToBytes(jwkPriv.p, primeBytes),
+        q:  base64UrlToBytes(jwkPriv.q, primeBytes),
+        dp: base64UrlToBytes(jwkPriv.dp, primeBytes),
+        dq: base64UrlToBytes(jwkPriv.dq, primeBytes),
+        qi: base64UrlToBytes(jwkPriv.qi, primeBytes)
+      };
+    }
+
+    // Generar MAC aleatoria con prefijo Espressif
+    function crearMacEspressif(indice) {
+      const oui = ESPRESSIF_OUIS[indice % ESPRESSIF_OUIS.length];
+      const b3 = Math.floor(Math.random() * 256);
+      const b4 = Math.floor(Math.random() * 256);
+      const b5 = indice & 0xFF;
+      return [oui[0], oui[1], oui[2], b3, b4, b5]
+        .map(b => b.toString(16).toUpperCase().padStart(2, '0'))
+        .join(':');
+    }
+
+    function generarMacAleatoriaInput() {
+      document.getElementById('inputMac').value = crearMacEspressif(nodos.length + 1);
+    }
+
+    function autocompletarNuevoNodo() {
+      const numGrupos = nodos.filter(n => n.rol === 'INVERNADERO').length;
+      document.getElementById('inputNombre').value = `GRUPO_${numGrupos + 1}`;
+      document.getElementById('inputRol').value = 'INVERNADERO';
+      generarMacAleatoriaInput();
+    }
+
+    // Validar formato MAC XX:XX:XX:XX:XX:XX
+    function esMacValida(mac) {
+      return /^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$/.test(mac.trim());
+    }
+
+    // Cargar plantilla de N nodos/grupos + 1 concentrador
+    async function cargarPlantilla(cantidadNodos, prefijo = 'GRUPO') {
+      nodos = [];
+      nodos.push({
+        id: crypto.randomUUID(),
+        nombre: "CONCENTRADOR",
+        rol: "CONCENTRADOR",
+        mac: "78:1C:3C:85:BB:C8",
+        rsa: null
+      });
+
+      for (let i = 1; i <= cantidadNodos; i++) {
+        const hexIdx = i.toString(16).toUpperCase().padStart(2, '0');
+        nodos.push({
+          id: crypto.randomUUID(),
+          nombre: `${prefijo}_${i}`,
+          rol: "INVERNADERO",
+          mac: `24:6F:28:AA:01:${hexIdx}`,
+          rsa: null
+        });
+      }
+
+      autocompletarNuevoNodo();
+      await recalcularTodasLasClaves();
+    }
+
+    // Agregar un nodo manualmente desde el formulario
+    async function agregarNodoManual() {
+      const nombreRaw = document.getElementById('inputNombre').value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+      const rol = document.getElementById('inputRol').value;
+      const mac = document.getElementById('inputMac').value.trim().toUpperCase();
+      const errorEl = document.getElementById('errorInput');
+
+      if (!nombreRaw) {
+        mostrarError("Ingresa un nombre para el nodo (ej. INVERNADERO_4).");
+        return;
+      }
+      if (!esMacValida(mac)) {
+        mostrarError("Formato de MAC inválido. Usa 6 pares hexadecimales como 24:6F:28:AA:BB:CC");
+        return;
+      }
+      if (nodos.some(n => n.mac === mac)) {
+        mostrarError("Esa dirección MAC ya está registrada en otro nodo.");
+        return;
+      }
+
+      errorEl.classList.add('hidden');
+      const bits = parseInt(document.getElementById('rsaBits').value, 10);
+      const claves = await generarClavesRSAParaNodo(bits);
+
+      nodos.push({
+        id: crypto.randomUUID(),
+        nombre: nombreRaw,
+        rol: rol,
+        mac: mac,
+        rsa: claves
+      });
+
+      autocompletarNuevoNodo();
+      actualizarUI();
+    }
+
+    function mostrarError(msg) {
+      const errorEl = document.getElementById('errorInput');
+      errorEl.textContent = msg;
+      errorEl.classList.remove('hidden');
+    }
+
+    function eliminarNodo(id) {
+      if (nodos.length <= 2) return; // Mantener mínimo 2 nodos para red
+      nodos = nodos.filter(n => n.id !== id);
+      actualizarUI();
+    }
+
+    function actualizarMacEnLinea(id, inputEl) {
+      const limpia = inputEl.value.trim().toUpperCase();
+      const nodo = nodos.find(n => n.id === id);
+      if (nodo && esMacValida(limpia)) {
+        nodo.mac = limpia;
+        inputEl.classList.remove('border-rose-500', 'text-rose-400');
+        inputEl.classList.add('border-emerald-500/60', 'text-emerald-400');
+        renderizarCodigoActivo();
+      } else {
+        inputEl.classList.remove('border-emerald-500/60', 'text-emerald-400');
+        inputEl.classList.add('border-rose-500', 'text-rose-400');
+      }
+    }
+
+    // Regenerar claves RSA de todos los nodos
+    async function recalcularTodasLasClaves() {
+      if (generando) return;
+      generando = true;
+      const btn = document.getElementById('textoBotonGenerar');
+      const icono = document.getElementById('iconoGenerar');
+      btn.textContent = "Calculando primos RSA...";
+      icono.classList.add('animate-spin');
+
+      const bits = parseInt(document.getElementById('rsaBits').value, 10);
+
+      for (let i = 0; i < nodos.length; i++) {
+        nodos[i].rsa = await generarClavesRSAParaNodo(bits);
+      }
+
+      generando = false;
+      btn.textContent = "Regenerar Claves RSA";
+      icono.classList.remove('animate-spin');
+      actualizarUI();
+    }
+
+    // Actualizar estadísticas, lista de nodos y código
+    function actualizarMetricas() {
+      const bits = parseInt(document.getElementById('rsaBits').value, 10);
+      const modBytes = bits / 8;
+      // Si cambió el tamaño de clave RSA, regenerar
+      if (nodos.length > 0 && nodos[0].rsa && nodos[0].rsa.n.length !== modBytes) {
+        recalcularTodasLasClaves();
+        return;
+      }
+      actualizarUI();
+    }
+
+    function actualizarUI() {
+      const bits = parseInt(document.getElementById('rsaBits').value, 10);
+      const modBytes = bits / 8;
+
+      // Métricas de memoria
+      document.getElementById('statNodos').textContent = nodos.length;
+      document.getElementById('contadorLista').textContent = nodos.length;
+
+      const bytesPorNodoEnFlash = 6 + 1 + modBytes; // MAC (6) + Rol (1) + Modulo RSA
+      const totalFlash = nodos.length * bytesPorNodoEnFlash;
+      document.getElementById('statFlash').textContent = totalFlash > 1024 
+        ? (totalFlash / 1024).toFixed(1) + ' KB' 
+        : totalFlash + ' B';
+
+      // Tamaño del paquete ESP-NOW: 6 (mac_orig) + 6 (mac_dest) + 1 (ttl) + 16 (IV) + modBytes (RSA) + 64 (AES Payload bidireccional)
+      const tamPaquete = 6 + 6 + 1 + 16 + modBytes + 64;
+      const elPacket = document.getElementById('statPacket');
+      elPacket.textContent = `${tamPaquete} / 250 B`;
+      elPacket.className = tamPaquete <= 250 
+        ? "text-base font-bold text-emerald-400 font-mono" 
+        : "text-base font-bold text-amber-400 font-mono";
+
+      // Renderizar lista de nodos a la izquierda
+      const container = document.getElementById('listaNodosContainer');
+      container.innerHTML = nodos.map((nodo, idx) => {
+        const esConcentrador = nodo.rol === 'CONCENTRADOR';
+        const badgeColor = esConcentrador 
+          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' 
+          : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+        const fp = nodo.rsa 
+          ? Array.from(nodo.rsa.n.slice(0, 4)).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join('') + '...'
+          : '...';
+
+        return `
+          <div class="bg-slate-950/90 border border-slate-800 hover:border-slate-700 rounded-xl p-3 flex items-center justify-between gap-2 transition">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-white font-mono truncate">${idx + 1}. ${nodo.nombre}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md border font-medium ${badgeColor}">
+                  ${esConcentrador ? 'CONCENTRADOR' : 'INVERNADERO'}
+                </span>
+              </div>
+              <div class="flex items-center gap-3 mt-1.5">
+                <div class="flex items-center gap-1 text-xs text-slate-400 font-mono">
+                  <span>MAC:</span>
+                  <input type="text" value="${nodo.mac}" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF"
+                    oninput="actualizarMacEnLinea('${nodo.id}', this)"
+                    class="bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded px-2 py-0.5 text-xs text-emerald-400 font-mono w-40 focus:outline-none" />
+                </div>
+                <span class="text-[11px] text-slate-500 font-mono hidden sm:inline">RSA Pub: 0x${fp}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1">
+              <button onclick="seleccionarNodoYVerClave('${nodo.id}')" title="Ver clave privada de este nodo" class="p-1.5 text-xs rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800">
+                🔑
+              </button>
+              ${nodos.length > 2 ? `
+                <button onclick="eliminarNodo('${nodo.id}')" title="Eliminar nodo" class="p-1.5 text-xs rounded-lg bg-slate-900 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-800">
+                  ✕
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Actualizar selector desplegable de nodo activo
+      const select = document.getElementById('selectNodoActivo');
+      const valorPrevio = select.value;
+      select.innerHTML = nodos.map(n => `<option value="${n.id}">${n.nombre} (${n.mac})</option>`).join('');
+      if (nodos.some(n => n.id === valorPrevio)) {
+        select.value = valorPrevio;
+      }
+
+      renderizarCodigoActivo();
+    }
+
+    function seleccionarNodoYVerClave(id) {
+      document.getElementById('selectNodoActivo').value = id;
+      cambiarTab('privado');
+    }
+
+    function cambiarTab(nuevaTab) {
+      tabActual = nuevaTab;
+      const tabs = ['publico', 'privado', 'sketch', 'macscanner'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`tab-${t}`);
+        if (t === nuevaTab) {
+          btn.className = "px-4 py-2.5 text-xs sm:text-sm font-medium rounded-t-xl border-t border-x border-slate-800 bg-slate-900 text-emerald-400 flex items-center gap-2";
+        } else {
+          btn.className = "px-4 py-2.5 text-xs sm:text-sm font-medium rounded-t-xl text-slate-400 hover:text-slate-200 flex items-center gap-2";
+        }
+      });
+
+      const selectorContainer = document.getElementById('selectorNodoContainer');
+      const infoArchivo = document.getElementById('infoArchivoActual');
+      const textoExp = document.getElementById('textoExplicacion');
+
+      if (nuevaTab === 'publico') {
+        selectorContainer.classList.add('hidden');
+        infoArchivo.classList.remove('hidden');
+        textoExp.textContent = "Guarda este archivo como 'directorio_publico.h'. Es idéntico para todos los NodeMCU: contiene el Canal 6, las MACs de toda la red y la Clave Pública RSA de cada uno.";
+      } else if (nuevaTab === 'privado') {
+        selectorContainer.classList.remove('hidden');
+        infoArchivo.classList.add('hidden');
+        textoExp.textContent = "Guarda este archivo como 'clave_privada_nodo.h' y cárgalo ÚNICAMENTE en el NodeMCU seleccionado arriba. Nadie más conoce estos primos RSA.";
+      } else if (nuevaTab === 'sketch') {
+        selectorContainer.classList.remove('hidden');
+        infoArchivo.classList.add('hidden');
+        textoExp.textContent = "Código completo (.ino) para tus NodeMCU. Fuerza el Canal 6, lee su propia MAC al encenderse para saber quién es, cifra lecturas con AES-256 + RSA y las envía o descifra.";
+      } else {
+        selectorContainer.classList.add('hidden');
+        infoArchivo.classList.add('hidden');
+        textoExp.textContent = "Sube este mini-sketch si tienes un NodeMCU nuevo en la mano y quieres ver su dirección MAC en el Monitor Serie para copiarla en la calculadora.";
+      }
+
+      renderizarCodigoActivo();
+    }
+
+    // Generadores de las 4 pestañas de código C++
+    function generarCodigoDirectorioPublico() {
+      const canal = document.getElementById('meshChannel').value;
+      const bits = parseInt(document.getElementById('rsaBits').value, 10);
+      const modBytes = bits / 8;
+
+      const idxConcentrador = Math.max(0, nodos.findIndex(n => n.rol === 'CONCENTRADOR'));
+
+      let entradasStruct = nodos.map((n, i) => {
+        const rolNum = n.rol === 'CONCENTRADOR' ? '1' : '0';
+        const hexMod = n.rsa ? bytesToCHexArray(n.rsa.n, 16, "      ") : '';
+        return `  // [${i}] ${n.nombre} (${n.rol}) - MAC: ${n.mac}
+  {
+    "${n.nombre}",
+    { ${macToCHex(n.mac)} },
+    ${rolNum},
+    {
+${hexMod}
+    }
+  }`;
+      }).join(',\n');
+
+      return `// ============================================================================
+// ARCHIVO: directorio_publico.h
+// Compartido por TODOS los NodeMCU (Invernaderos y Concentrador Principal)
+// Red Mesh en Canal ${canal} con Claves Públicas RSA-${bits} hardcodeadas por MAC
+// ============================================================================
+#pragma once
+#include <Arduino.h>
+
+#define MESH_WIFI_CHANNEL     ${canal}
+#define TOTAL_NODOS_MESH      ${nodos.length}
+#define INDICE_CONCENTRADOR   ${idxConcentrador}
+#define RSA_MOD_BYTES         ${modBytes}   // ${bits} bits
+
+struct NodoMeshInfo {
+  const char* nombre;
+  uint8_t mac[6];
+  uint8_t esConcentrador; // 1 = Concentrador Principal, 0 = Invernadero
+  uint8_t rsa_pub_mod[RSA_MOD_BYTES];
+};
+
+// Guardado en memoria Flash (PROGMEM) para ahorrar RAM en el ESP8266
+const NodoMeshInfo TABLA_NODOS[TOTAL_NODOS_MESH] PROGMEM = {
+${entradasStruct}
+};
+`;
+    }
+
+    function generarCodigoClavePrivada(nodo) {
+      if (!nodo || !nodo.rsa) return "// Selecciona un nodo válido...";
+      const bits = parseInt(document.getElementById('rsaBits').value, 10);
+      const primeBytes = bits / 16;
+
+      return `// ============================================================================
+// ARCHIVO: clave_privada_nodo.h
+// EXCLUSIVO PARA EL NODO: ${nodo.nombre} (MAC: ${nodo.mac})
+// ¡NO COMPARTIR EN OTROS NODOS! Se usa con BearSSL para descifrar AES-256
+// ============================================================================
+#pragma once
+#include <Arduino.h>
+
+#define RSA_PRIME_BYTES ${primeBytes}
+
+// Componentes privados CRT (Chinese Remainder Theorem) para BearSSL en ESP8266
+const uint8_t MI_RSA_P[RSA_PRIME_BYTES] = {
+${bytesToCHexArray(nodo.rsa.p, 12, "  ")}
+};
+
+const uint8_t MI_RSA_Q[RSA_PRIME_BYTES] = {
+${bytesToCHexArray(nodo.rsa.q, 12, "  ")}
+};
+
+const uint8_t MI_RSA_DP[RSA_PRIME_BYTES] = {
+${bytesToCHexArray(nodo.rsa.dp, 12, "  ")}
+};
+
+const uint8_t MI_RSA_DQ[RSA_PRIME_BYTES] = {
+${bytesToCHexArray(nodo.rsa.dq, 12, "  ")}
+};
+
+const uint8_t MI_RSA_IQ[RSA_PRIME_BYTES] = {
+${bytesToCHexArray(nodo.rsa.qi, 12, "  ")}
+};
+`;
+    }
+
+    function generarCodigoSketchCompleto(nodo) {
+      const canal = document.getElementById('meshChannel').value;
+      return `// ============================================================================
+// SKETCH BIDIRECCIONAL NODEMCU (ESP8266): ${nodo ? nodo.nombre : 'NODO_MESH'}
+// Red Mesh ESP-NOW Canal ${canal} | Cifrado Híbrido RSA-OAEP + AES-256-CBC (BearSSL)
+// Compatible con Raspberry Pi 5 (gateway_rpi5.py por USB Serial 115200) + FloraSense AWS
+// Coloca "directorio_publico.h" y "clave_privada_nodo.h" en la misma carpeta
+// ============================================================================
+#include <Arduino.h>
+#include <ESP8266WiFi.h>
+#include <espnow.h>
+#include <bearssl/bearssl.h>
+
+#include "directorio_publico.h"
+#include "clave_privada_nodo.h"
+
+// Pines por defecto (ajusta según el cableado de tu grupo)
+const int SOIL_MOISTURE_PIN = A0; // Sensor humedad de tierra (YL-69)
+const int PUMP_PIN          = 5;  // D1 (GPIO5) - Relé Bomba Sumergible
+const int FAN_PIN           = 4;  // D2 (GPIO4) - Relé Extractor/Ventilador (opcional)
+const int DRY_ADC           = 1023;
+const int WET_ADC           = 300;
+
+#define MSG_TELEMETRIA  1
+#define MSG_COMANDO     2
+#define MSG_ACK         3
+
+#define TARGET_PUMP     0
+#define TARGET_FAN      1
+
+// Payload de 64 bytes exactos (4 bloques AES-256)
+struct __attribute__((packed)) MensajeMesh {
+  uint8_t  tipo;           // 1=TELEMETRIA, 2=COMANDO, 3=ACK
+  uint8_t  bomba_on;       // 1=ON, 0=OFF
+  uint8_t  fan_on;         // 1=ON, 0=OFF
+  uint8_t  target;         // 0=pump, 1=fan
+  float    temperatura;    // °C
+  float    humedad_aire;   // % HR
+  float    humedad_suelo;  // % Tierra
+  uint16_t max_duracion;   // seg seguridad bomba
+  uint16_t reservado;
+  uint32_t id_paquete;     // Secuencia anti-replay
+  char     command_id[40]; // UUID de comando FloraSense
+};
+
+// Trama ESP-NOW Canal ${canal} (221 bytes con RSA-1024 <= 250 bytes)
+struct __attribute__((packed)) PaqueteMeshCifrado {
+  uint8_t mac_origen[6];
+  uint8_t mac_destino[6];
+  uint8_t ttl_saltos;
+  uint8_t iv[16];
+  uint8_t clave_aes_cifrada[RSA_MOD_BYTES];
+  uint8_t payload_aes256[sizeof(MensajeMesh)];
+};
+
+uint8_t miMAC[6];
+int miIndiceNodo = -1;
+bool soyConcentrador = false;
+uint32_t secuenciaEnvio = 1;
+
+bool estadoBomba = false;
+bool estadoFan = false;
+unsigned long bombaApagadoAutoMs = 0;
+
+// Cola de recepción segura fuera de la interrupción ESP-NOW
+#define RX_QUEUE_SIZE 4
+PaqueteMeshCifrado colaRx[RX_QUEUE_SIZE];
+volatile uint8_t colaHead = 0;
+volatile uint8_t colaTail = 0;
+
+String bufferSerialRPi = "";
+
+int buscarNodoPorMAC(const uint8_t* macBuscada) {
+  for (int i = 0; i < TOTAL_NODOS_MESH; i++) {
+    uint8_t macTabla[6];
+    memcpy_P(macTabla, TABLA_NODOS[i].mac, 6);
+    if (memcmp(macBuscada, macTabla, 6) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+const char* obtenerNombreNodo(int idx) {
+  const char* ptr = nullptr;
+  memcpy_P(&ptr, &TABLA_NODOS[idx].nombre, sizeof(const char*));
+  return ptr ? ptr : "DESCONOCIDO";
+}
+
+int buscarNodoPorNombre(const char* nombreBuscado) {
+  for (int i = 0; i < TOTAL_NODOS_MESH; i++) {
+    if (strcmp(obtenerNombreNodo(i), nombreBuscado) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// Extractor simple de campos JSON sin librerías externas
+bool extraerCampoJson(const String& json, const char* clave, String& salida) {
+  String patron = String("\\"") + clave + "\\"";
+  int pos = json.indexOf(patron);
+  if (pos < 0) return false;
+  pos = json.indexOf(':', pos + patron.length());
+  if (pos < 0) return false;
+  pos++;
+  while (pos < (int)json.length() && (json[pos] == ' ' || json[pos] == '\\t')) pos++;
+  if (pos >= (int)json.length()) return false;
+
+  if (json[pos] == '"') {
+    int fin = json.indexOf('"', pos + 1);
+    if (fin < 0) return false;
+    salida = json.substring(pos + 1, fin);
+    return true;
+  } else {
+    int fin = pos;
+    while (fin < (int)json.length() && json[fin] != ',' && json[fin] != '}') fin++;
+    salida = json.substring(pos, fin);
+    salida.trim();
+    return true;
+  }
+}
+
+bool cifrarMensajeHaciaNodo(int indiceDestino, const MensajeMesh& msg, PaqueteMeshCifrado* pktOut) {
+  memcpy(pktOut->mac_origen, miMAC, 6);
+  memcpy_P(pktOut->mac_destino, TABLA_NODOS[indiceDestino].mac, 6);
+  pktOut->ttl_saltos = 4;
+
+  uint8_t claveSesionAES[32];
+  for (int i = 0; i < 32; i += 4) {
+    uint32_t r = RANDOM_REG32;
+    memcpy(claveSesionAES + i, &r, 4);
+  }
+  for (int i = 0; i < 16; i += 4) {
+    uint32_t r = RANDOM_REG32;
+    memcpy(pktOut->iv + i, &r, 4);
+  }
+
+  br_aes_big_cbcenc_keys aesEncCtx;
+  br_aes_big_cbcenc_init(&aesEncCtx, claveSesionAES, 32);
+  uint8_t ivCopia[16];
+  memcpy(ivCopia, pktOut->iv, 16);
+  memcpy(pktOut->payload_aes256, &msg, sizeof(MensajeMesh));
+  br_aes_big_cbcenc_run(&aesEncCtx, ivCopia, pktOut->payload_aes256, sizeof(MensajeMesh));
+
+  uint8_t moduloPublicoDestino[RSA_MOD_BYTES];
+  memcpy_P(moduloPublicoDestino, TABLA_NODOS[indiceDestino].rsa_pub_mod, RSA_MOD_BYTES);
+  uint8_t expPublico[] = {0x01, 0x00, 0x01};
+
+  br_rsa_public_key pubKey = {
+    moduloPublicoDestino, RSA_MOD_BYTES,
+    expPublico, sizeof(expPublico)
+  };
+
+  br_hmac_drbg_context rng;
+  uint32_t semilla = RANDOM_REG32;
+  br_hmac_drbg_init(&rng, &br_sha256_vtable, &semilla, sizeof(semilla));
+
+  ESP.wdtFeed();
+  br_rsa_oaep_encrypt enc = br_rsa_oaep_encrypt_get_default();
+  size_t len = enc(&rng.vtable, &br_sha256_vtable, NULL, 0, &pubKey,
+                   pktOut->clave_aes_cifrada, RSA_MOD_BYTES, claveSesionAES, 32);
+  ESP.wdtFeed();
+
+  return (len == RSA_MOD_BYTES);
+}
+
+bool descifrarMensajeRecibido(PaqueteMeshCifrado* pktIn, MensajeMesh* msgOut) {
+  br_rsa_private_key miClavePrivada = {
+    RSA_MOD_BYTES * 8,
+    (unsigned char*)MI_RSA_P,  RSA_PRIME_BYTES,
+    (unsigned char*)MI_RSA_Q,  RSA_PRIME_BYTES,
+    (unsigned char*)MI_RSA_DP, RSA_PRIME_BYTES,
+    (unsigned char*)MI_RSA_DQ, RSA_PRIME_BYTES,
+    (unsigned char*)MI_RSA_IQ, RSA_PRIME_BYTES
+  };
+
+  size_t len = RSA_MOD_BYTES;
+  ESP.wdtFeed();
+  br_rsa_oaep_decrypt dec = br_rsa_oaep_decrypt_get_default();
+  uint32_t exito = dec(&br_sha256_vtable, NULL, 0, &miClavePrivada, pktIn->clave_aes_cifrada, &len);
+  ESP.wdtFeed();
+
+  if (exito != 1 || len != 32) return false;
+
+  uint8_t claveSesionAES[32];
+  memcpy(claveSesionAES, pktIn->clave_aes_cifrada, 32);
+
+  br_aes_big_cbcdec_keys aesDecCtx;
+  br_aes_big_cbcdec_init(&aesDecCtx, claveSesionAES, 32);
+  uint8_t ivCopia[16];
+  memcpy(ivCopia, pktIn->iv, 16);
+  br_aes_big_cbcdec_run(&aesDecCtx, ivCopia, pktIn->payload_aes256, sizeof(MensajeMesh));
+  memcpy(msgOut, pktIn->payload_aes256, sizeof(MensajeMesh));
+
+  return true;
+}
+
+void enviarPaqueteMesh(int indiceDestino, const MensajeMesh& msg) {
+  PaqueteMeshCifrado paquete;
+  if (cifrarMensajeHaciaNodo(indiceDestino, msg, &paquete)) {
+    uint8_t macDestino[6];
+    memcpy_P(macDestino, TABLA_NODOS[indiceDestino].mac, 6);
+    esp_now_send(macDestino, (uint8_t*)&paquete, sizeof(PaqueteMeshCifrado));
+  }
+}
+
+// Lecturas de sensores del nodo (conecta aquí tu lógica real DHT / suelo)
+float leerHumedadSueloPct() {
+  int raw = analogRead(SOIL_MOISTURE_PIN);
+  long pct = map(raw, DRY_ADC, WET_ADC, 0, 100);
+  return (float)constrain(pct, 0, 100);
+}
+
+void enviarTelemetriaAConcentrador() {
+  MensajeMesh msg;
+  memset(&msg, 0, sizeof(msg));
+  msg.tipo          = MSG_TELEMETRIA;
+  msg.bomba_on      = estadoBomba ? 1 : 0;
+  msg.fan_on        = estadoFan ? 1 : 0;
+  msg.temperatura   = 24.5f; // Reemplazar con lectura real DHT11/DHT22 de tu grupo
+  msg.humedad_aire  = 58.0f; // Reemplazar con lectura real DHT11/DHT22 de tu grupo
+  msg.humedad_suelo = leerHumedadSueloPct();
+  msg.id_paquete    = secuenciaEnvio++;
+
+  enviarPaqueteMesh(INDICE_CONCENTRADOR, msg);
+}
+
+void enviarAckAConcentrador(const char* commandId) {
+  MensajeMesh ack;
+  memset(&ack, 0, sizeof(ack));
+  ack.tipo       = MSG_ACK;
+  ack.bomba_on   = estadoBomba ? 1 : 0;
+  ack.fan_on     = estadoFan ? 1 : 0;
+  ack.id_paquete = secuenciaEnvio++;
+  strncpy(ack.command_id, commandId, sizeof(ack.command_id) - 1);
+
+  enviarPaqueteMesh(INDICE_CONCENTRADOR, ack);
+}
+
+// Callback liviano: solo encola el paquete para procesarlo en loop()
+void alRecibirDatosMesh(uint8_t *macSaltoAnterior, uint8_t *datos, uint8_t len) {
+  if (len != sizeof(PaqueteMeshCifrado)) return;
+  uint8_t siguiente = (colaHead + 1) % RX_QUEUE_SIZE;
+  if (siguiente != colaTail) {
+    memcpy(&colaRx[colaHead], datos, sizeof(PaqueteMeshCifrado));
+    colaHead = siguiente;
+  }
+}
+
+void procesarPaqueteEncolado(PaqueteMeshCifrado& pkt) {
+  int idxOrigen = buscarNodoPorMAC(pkt.mac_origen);
+  if (idxOrigen < 0) return;
+
+  if (memcmp(pkt.mac_destino, miMAC, 6) == 0) {
+    MensajeMesh msg;
+    if (!descifrarMensajeRecibido(&pkt, &msg)) return;
+
+    if (soyConcentrador) {
+      const char* nombreOrigen = obtenerNombreNodo(idxOrigen);
+      if (msg.tipo == MSG_TELEMETRIA) {
+        // Formato leído directamente por gateway_rpi5.py en la Raspberry Pi 5
+        Serial.printf(
+          "{\\"origen\\":\\"%s\\",\\"temp\\":%.2f,\\"hum\\":%.2f,\\"suelo\\":%.2f,\\"bomba\\":%s,\\"fan\\":%s,\\"seq\\":%u}\\n",
+          nombreOrigen,
+          msg.temperatura,
+          msg.humedad_aire,
+          msg.humedad_suelo,
+          msg.bomba_on ? "true" : "false",
+          msg.fan_on ? "true" : "false",
+          msg.id_paquete
+        );
+      } else if (msg.tipo == MSG_ACK) {
+        Serial.printf(
+          "{\\"ack\\":true,\\"origen\\":\\"%s\\",\\"commandId\\":\\"%s\\",\\"status\\":\\"ACKNOWLEDGED\\",\\"bomba\\":%s,\\"fan\\":%s}\\n",
+          nombreOrigen,
+          msg.command_id,
+          msg.bomba_on ? "true" : "false",
+          msg.fan_on ? "true" : "false"
+        );
+      }
+    } else if (msg.tipo == MSG_COMANDO) {
+      // Ejecutar comando bidireccional enviado desde AWS -> RPi 5 -> Concentrador
+      if (msg.target == TARGET_FAN) {
+        estadoFan = (msg.fan_on == 1);
+        digitalWrite(FAN_PIN, estadoFan ? HIGH : LOW);
+      } else {
+        estadoBomba = (msg.bomba_on == 1);
+        digitalWrite(PUMP_PIN, estadoBomba ? HIGH : LOW);
+        if (estadoBomba && msg.max_duracion > 0) {
+          bombaApagadoAutoMs = millis() + ((unsigned long)msg.max_duracion * 1000UL);
+        } else {
+          bombaApagadoAutoMs = 0;
+        }
+      }
+      enviarAckAConcentrador(msg.command_id);
+      enviarTelemetriaAConcentrador();
+    }
+  } else if (pkt.ttl_saltos > 0) {
+    // Ruteo Multi-Salto en Canal ${canal}
+    pkt.ttl_saltos--;
+    esp_now_send(pkt.mac_destino, (uint8_t*)&pkt, sizeof(PaqueteMeshCifrado));
+  }
+}
+
+void procesarComandosSerialRPi5() {
+  while (Serial.available()) {
+    char c = (char)Serial.read();
+    if (c == '\\n') {
+      bufferSerialRPi.trim();
+      if (bufferSerialRPi.startsWith("{")) {
+        String destino, cmdId, target, action, durStr;
+        if (extraerCampoJson(bufferSerialRPi, "destino", destino) &&
+            extraerCampoJson(bufferSerialRPi, "action", action)) {
+          extraerCampoJson(bufferSerialRPi, "commandId", cmdId);
+          extraerCampoJson(bufferSerialRPi, "target", target);
+          extraerCampoJson(bufferSerialRPi, "maxDurationSeconds", durStr);
+
+          int idxDest = buscarNodoPorNombre(destino.c_str());
+          if (idxDest >= 0) {
+            MensajeMesh cmd;
+            memset(&cmd, 0, sizeof(cmd));
+            cmd.tipo = MSG_COMANDO;
+            cmd.target = (target == "fan") ? TARGET_FAN : TARGET_PUMP;
+            bool encender = (action == "ON" || action == "on");
+            cmd.bomba_on = (cmd.target == TARGET_PUMP && encender) ? 1 : 0;
+            cmd.fan_on   = (cmd.target == TARGET_FAN && encender) ? 1 : 0;
+            cmd.max_duracion = (uint16_t)(durStr.length() > 0 ? durStr.toInt() : 30);
+            cmd.id_paquete = secuenciaEnvio++;
+            strncpy(cmd.command_id, cmdId.c_str(), sizeof(cmd.command_id) - 1);
+
+            enviarPaqueteMesh(idxDest, cmd);
+          }
+        }
+      }
+      bufferSerialRPi = "";
+    } else if (c != '\\r') {
+      bufferSerialRPi += c;
+      if (bufferSerialRPi.length() > 384) bufferSerialRPi = "";
+    }
+  }
+}
+
+void setup() {
+  pinMode(PUMP_PIN, OUTPUT);
+  pinMode(FAN_PIN, OUTPUT);
+  digitalWrite(PUMP_PIN, LOW);
+  digitalWrite(FAN_PIN, LOW);
+
+  Serial.begin(115200);
+  delay(500);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  wifi_promiscuous_enable(1);
+  wifi_set_channel(MESH_WIFI_CHANNEL);
+  wifi_promiscuous_enable(0);
+
+  WiFi.macAddress(miMAC);
+  miIndiceNodo = buscarNodoPorMAC(miMAC);
+
+  if (esp_now_init() != 0) {
+    Serial.println("Error iniciando ESP-NOW");
+    return;
+  }
+  esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
+  esp_now_register_recv_cb(alRecibirDatosMesh);
+
+  for (int i = 0; i < TOTAL_NODOS_MESH; i++) {
+    uint8_t macVecino[6];
+    memcpy_P(macVecino, TABLA_NODOS[i].mac, 6);
+    if (i == miIndiceNodo) {
+      soyConcentrador = (pgm_read_byte(&TABLA_NODOS[i].esConcentrador) == 1);
+      Serial.printf("\\n[OK] Nodo=%s | Concentrador=%d | Canal=%d\\n",
+                    obtenerNombreNodo(i), soyConcentrador ? 1 : 0, wifi_get_channel());
+    } else {
+      esp_now_add_peer(macVecino, ESP_NOW_ROLE_COMBO, MESH_WIFI_CHANNEL, NULL, 0);
+    }
+  }
+}
+
+unsigned long ultimoEnvio = 0;
+
+void loop() {
+  // 1. Procesar mensajes cifrados recibidos por ESP-NOW Canal ${canal}
+  while (colaTail != colaHead) {
+    PaqueteMeshCifrado pkt = colaRx[colaTail];
+    colaTail = (colaTail + 1) % RX_QUEUE_SIZE;
+    procesarPaqueteEncolado(pkt);
+  }
+
+  // 2. Si soy Concentrador, escuchar comandos desde la Raspberry Pi 5 por USB Serial
+  if (soyConcentrador) {
+    procesarComandosSerialRPi5();
+  }
+
+  // 3. Seguro anti-inundación local en nodos de grupo
+  if (!soyConcentrador && estadoBomba && bombaApagadoAutoMs > 0 && millis() >= bombaApagadoAutoMs) {
+    estadoBomba = false;
+    bombaApagadoAutoMs = 0;
+    digitalWrite(PUMP_PIN, LOW);
+    enviarTelemetriaAConcentrador();
+  }
+
+  // 4. Si soy nodo de grupo, enviar telemetría cifrada cada 5 segundos al Concentrador
+  if (!soyConcentrador && miIndiceNodo >= 0 && (millis() - ultimoEnvio >= 5000)) {
+    ultimoEnvio = millis();
+    enviarTelemetriaAConcentrador();
+  }
+}
+`;
+    }
+
+    function generarCodigoScannerMAC() {
+      return `// ============================================================================
+// SKETCH AUXILIAR: Obtener la dirección MAC de cada NodeMCU para pegarla aquí
+// ============================================================================
+#include <Arduino.h>
+#include <ESP8266WiFi.h>
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  WiFi.mode(WIFI_STA);
+  
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  
+  Serial.println("\\n==========================================");
+  Serial.printf("COPIA ESTA MAC EN LA CALCULADORA: %02X:%02X:%02X:%02X:%02X:%02X\\n",
+                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  Serial.println("==========================================");
+}
+
+void loop() {
+  delay(5000);
+}
+`;
+    }
+
+    // Renderizar código en el visor según la pestaña activa
+    function renderizarCodigoActivo() {
+      const codeEl = document.getElementById('codeOutput');
+      const idSeleccionado = document.getElementById('selectNodoActivo').value;
+      const nodoActivo = nodos.find(n => n.id === idSeleccionado) || nodos[0];
+
+      if (tabActual === 'publico') {
+        codeEl.textContent = generarCodigoDirectorioPublico();
+      } else if (tabActual === 'privado') {
+        codeEl.textContent = generarCodigoClavePrivada(nodoActivo);
+      } else if (tabActual === 'sketch') {
+        codeEl.textContent = generarCodigoSketchCompleto(nodoActivo);
+      } else {
+        codeEl.textContent = generarCodigoScannerMAC();
+      }
+    }
+
+    // Copiar al portapapeles compatible con iframes
+    function copiarCodigoActual() {
+      const codigo = document.getElementById('codeOutput').textContent;
+      const textarea = document.createElement('textarea');
+      textarea.value = codigo;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+
+      const lbl = document.getElementById('lblCopiar');
+      lbl.textContent = "¡Copiado!";
+      setTimeout(() => { lbl.textContent = "Copiar Código"; }, 1800);
+    }
+
+    // Descargar el archivo .h o .ino actual
+    function descargarArchivoActual() {
+      const codigo = document.getElementById('codeOutput').textContent;
+      const idSeleccionado = document.getElementById('selectNodoActivo').value;
+      const nodoActivo = nodos.find(n => n.id === idSeleccionado) || nodos[0];
+
+      let nombreArchivo = 'directorio_publico.h';
+      if (tabActual === 'privado') {
+        nombreArchivo = `clave_privada_${nodoActivo.nombre.toLowerCase()}.h`;
+      } else if (tabActual === 'sketch') {
+        nombreArchivo = `nodo_mesh_${nodoActivo.nombre.toLowerCase()}.ino`;
+      } else if (tabActual === 'macscanner') {
+        nombreArchivo = 'leer_mac_nodemcu.ino';
+      }
+
+      const blob = new Blob([codigo], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombreArchivo;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Inicializar al abrir la página con 1 Concentrador + 3 Grupos
+    window.onload = () => {
+      cargarPlantilla(3, 'GRUPO');
+    };
+  </script>
+</body>
+</html>

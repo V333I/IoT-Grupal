@@ -1,0 +1,12 @@
+include:
+  - FloraSense-IoT/docker-compose.yml
+
+services:
+  mesh_calculator:
+    image: nginx:alpine
+    container_name: mesh_rsa_calculator
+    ports:
+      - "8080:80"
+    volumes:
+      - ./calculadora_rsa_mac_para_red_mesh_nodemcu.html:/usr/share/nginx/html/index.html:ro
+    restart: unless-stopped

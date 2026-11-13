@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.git
+.next
+**/.next
+dist
+**/dist
+pgdata
+mosquitto_data
+mosquitto_log
+*.log
+.env
+.env.*
+!.env.example

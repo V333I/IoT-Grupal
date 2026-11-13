@@ -1,0 +1,50 @@
+# Dependencias y compilaciones
+node_modules/
+dist/
+build/
+out/
+.next/
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+.pio/
+build_output/
+
+# Variables de entorno y secretos (NUNCA subir a Git)
+.env
+.env.*
+!.env.example
+keys/
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+
+# Bases de datos locales y volúmenes Docker
+*.db
+*.sqlite
+*.sqlite3
+docker-volumes/
+pgdata/
+mosquitto_data/
+mosquitto_log/
+
+# Logs y archivos del sistema / IDE
+logs/
+*.log
+npm-debug.log*
+yarn-error.log*
+coverage/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Archivos multimedia o notas privadas locales
+*.pptx
+*.jpeg
+*.jpg
+*.png
+historico.md
+MASTER_DESIGN_BRIEF_RIEGO_IOT.md
+SKILL_riego_iot_profesional.md

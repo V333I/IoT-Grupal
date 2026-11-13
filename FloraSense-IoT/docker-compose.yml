@@ -1,0 +1,132 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: smart_irrigation_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-smart_irrigation}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d smart_irrigation"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: smart_irrigation_mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: smart_irrigation_api
+    volumes:
+      - ./apps/api:/app/apps/api
+      - /app/node_modules
+      - /app/apps/api/node_modules
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/smart_irrigation?schema=public
+      MQTT_BROKER_URL: mqtt://mosquitto:1883
+      PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret}
+      GATEWAY_SECRET: ${GATEWAY_SECRET:-change-me-gateway-secret}
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: smart_irrigation_web
+    volumes:
+      - ./apps/web:/app/apps/web
+      - /app/node_modules
+      - /app/apps/web/node_modules
+      - /app/apps/web/.next
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+    restart: unless-stopped
+
+  rpi5_gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: smart_irrigation_rpi5_gateway
+    depends_on:
+      - api
+    ports:
+      - "9500:9500"
+    volumes:
+      - rpi5_data:/data
+    environment:
+      AWS_API_URL: http://api:3001
+      GATEWAY_SECRET: ${GATEWAY_SECRET:-change-me-gateway-secret}
+      GATEWAY_ID: raspberry-pi-5-central
+      INPUT_MODE: ${RPI_INPUT_MODE:-tcp}
+      TCP_PORT: 9500
+      SYNC_INTERVAL_SEC: 5
+    profiles:
+      - sim
+    restart: unless-stopped
+
+  simulator:
+    build:
+      context: ./firmware/simulator
+      dockerfile: Dockerfile
+    container_name: smart_irrigation_simulator
+    depends_on:
+      - mosquitto
+      - api
+    environment:
+      MQTT_BROKER_URL: mqtt://mosquitto:1883
+      DEVICE_ID: ${SIMULATOR_DEVICE_ID:-123e4567-e89b-12d3-a456-426614174000}
+    profiles:
+      - legacy-sim
+    restart: unless-stopped
+
+  prisma_studio:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: smart_irrigation_studio
+    entrypoint: []
+    command: ["./node_modules/.bin/prisma", "studio", "--port", "5555", "--browser", "none"]
+    ports:
+      - "5555:5555"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/smart_irrigation?schema=public
+    profiles:
+      - tools
+
+volumes:
+  pgdata:
+  mosquitto_data:
+  mosquitto_log:
+  rpi5_data:
