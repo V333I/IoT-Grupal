@@ -8,24 +8,24 @@ set -euo pipefail
 
 AWS_HOST="${1:-TU_IP_PUBLICA_EC2}"
 GW_SECRET="${2:-change-me-gateway-secret}"
-DETECTED_PORT="/dev/ttyUSB0"
-if [ -e "/dev/ttyACM0" ] && [ ! -e "/dev/ttyUSB0" ]; then
-  DETECTED_PORT="/dev/ttyACM0"
-fi
-SERIAL_DEV="${3:-$DETECTED_PORT}"
+SERIAL_DEV="${3:-auto}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RPI_USER="$(whoami)"
 
-echo "=== [1/4] Instalando dependencias del sistema y permisos USB ($RPI_USER) ==="
-sudo apt-get update -y
-sudo apt-get install -y git python3-venv python3-pip
+echo "=== [1/4] Verificando dependencias del sistema y permisos USB ($RPI_USER) ==="
+if ! command -v git >/dev/null 2>&1 || ! python3 -m venv --help >/dev/null 2>&1; then
+  sudo apt-get update -y
+  sudo apt-get install -y git python3-venv python3-pip
+fi
 sudo usermod -aG dialout "$RPI_USER"
 
-echo "=== [2/4] Creando entorno virtual Python en $SCRIPT_DIR/.venv ==="
-python3 -m venv "$SCRIPT_DIR/.venv"
-"$SCRIPT_DIR/.venv/bin/pip" install --upgrade pip
-"$SCRIPT_DIR/.venv/bin/pip" install -r "$SCRIPT_DIR/requirements.txt"
+echo "=== [2/4] Configurando entorno Python en $SCRIPT_DIR/.venv ==="
+python3 -m venv --system-site-packages "$SCRIPT_DIR/.venv"
+if ! "$SCRIPT_DIR/.venv/bin/python" -c "import serial, cryptography, requests" >/dev/null 2>&1; then
+  "$SCRIPT_DIR/.venv/bin/pip" install --upgrade pip
+  "$SCRIPT_DIR/.venv/bin/pip" install -r "$SCRIPT_DIR/requirements.txt"
+fi
 
 echo "=== [3/4] Escribiendo /etc/florasense-gateway.env ==="
 if [[ "$AWS_HOST" == http* ]]; then

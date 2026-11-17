@@ -1,4 +1,5 @@
 import base64
+import glob
 import json
 import os
 import random
@@ -17,7 +18,7 @@ AWS_API_URL = os.getenv("AWS_API_URL", "http://localhost:3001").rstrip("/")
 GATEWAY_SECRET = os.getenv("GATEWAY_SECRET", "change-me-gateway-secret")
 GATEWAY_ID = os.getenv("GATEWAY_ID", "raspberry-pi-5-central")
 INPUT_MODE = os.getenv("INPUT_MODE", "mock").lower()  # "tcp" | "serial" | "mock"
-SERIAL_PORT = os.getenv("SERIAL_PORT", "/dev/ttyUSB0")
+SERIAL_PORT = os.getenv("SERIAL_PORT", "auto")
 SERIAL_BAUD = int(os.getenv("SERIAL_BAUD", "115200"))
 TCP_PORT = int(os.getenv("TCP_PORT", "9500"))
 SYNC_INTERVAL_SEC = float(os.getenv("SYNC_INTERVAL_SEC", "5"))
@@ -264,25 +265,63 @@ def main():
     state_lock = threading.Lock()
 
     mock_mesh = MockMeshConcentrator() if INPUT_MODE == "mock" else None
-    serial_conn = None
+    serial_lock = threading.Lock()
+    serial_conn_holder: list = [None]
 
     tcp_client_lock = threading.Lock()
     tcp_client_conn: list[socket.socket | None] = [None]
 
+    def resolve_serial_port() -> str | None:
+        if SERIAL_PORT and SERIAL_PORT.lower() != "auto":
+            return SERIAL_PORT if os.path.exists(SERIAL_PORT) else None
+        candidates = sorted(glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*"))
+        return candidates[0] if candidates else None
+
     if INPUT_MODE == "serial":
         import serial  # type: ignore
 
-        print(f"[RPi5 Gateway] Abriendo puerto USB Serial {SERIAL_PORT} @ {SERIAL_BAUD}...")
-        serial_conn = serial.Serial(SERIAL_PORT, SERIAL_BAUD, timeout=1)
-
         def serial_reader():
+            last_wait_log = 0.0
             while True:
+                with serial_lock:
+                    conn = serial_conn_holder[0]
+
+                if conn is None:
+                    port = resolve_serial_port()
+                    if not port:
+                        now = time.time()
+                        if now - last_wait_log >= 15:
+                            print(f"[RPi5 Serial] Esperando NodeMCU Concentrador por USB ({SERIAL_PORT})...")
+                            last_wait_log = now
+                        time.sleep(2)
+                        continue
+                    try:
+                        new_conn = serial.Serial(port, SERIAL_BAUD, timeout=1)
+                        with serial_lock:
+                            serial_conn_holder[0] = new_conn
+                        print(f"[RPi5 Serial] Concentrador conectado en {port} @ {SERIAL_BAUD} bps")
+                    except Exception as exc:
+                        now = time.time()
+                        if now - last_wait_log >= 15:
+                            print(f"[RPi5 Serial] No se pudo abrir {port}: {exc}")
+                            last_wait_log = now
+                        time.sleep(2)
+                        continue
+
                 try:
-                    raw_line = serial_conn.readline().decode("utf-8", errors="ignore")
-                    ingest_json_line(raw_line, latest_nodes, acks_queue, state_lock, db, db_lock)
+                    raw_line = conn.readline().decode("utf-8", errors="ignore")
+                    if raw_line:
+                        ingest_json_line(raw_line, latest_nodes, acks_queue, state_lock, db, db_lock)
                 except Exception as exc:
-                    print(f"[RPi5 Serial] Error leyendo línea: {exc}")
-                    time.sleep(1)
+                    print(f"[RPi5 Serial] Concentrador USB desconectado ({exc}). Reintentando...")
+                    with serial_lock:
+                        try:
+                            if serial_conn_holder[0] is not None:
+                                serial_conn_holder[0].close()
+                        except Exception:
+                            pass
+                        serial_conn_holder[0] = None
+                    time.sleep(2)
 
         threading.Thread(target=serial_reader, daemon=True).start()
 
@@ -398,9 +437,15 @@ def main():
                             "maxDurationSeconds": cmd.get("maxDurationSeconds", 30),
                         }
                         line_bytes = (json.dumps(downlink) + "\n").encode("utf-8")
-                        if serial_conn is not None:
-                            serial_conn.write(line_bytes)
-                            print(f"[RPi5 -> Concentrador USB] Enviado: {downlink}")
+                        if INPUT_MODE == "serial":
+                            with serial_lock:
+                                sconn = serial_conn_holder[0]
+                                if sconn is not None:
+                                    sconn.write(line_bytes)
+                                    sconn.flush()
+                                    print(f"[RPi5 -> Concentrador USB] Enviado: {downlink}")
+                                else:
+                                    print(f"[RPi5 Serial] Sin Concentrador USB conectado para enviar: {downlink}")
                         elif INPUT_MODE == "tcp":
                             with tcp_client_lock:
                                 client = tcp_client_conn[0]
