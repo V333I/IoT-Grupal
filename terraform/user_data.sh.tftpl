@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec > >(tee /var/log/florasense-init.log) 2>&1
+echo "=== [1/5] Configurando swap de 2 GB ==="
+if ! swapon --show | grep -q '/swapfile'; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+echo "=== [2/5] Instalando Docker, Compose v2 y Git ==="
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y docker.io docker-compose-v2 git curl
+systemctl enable --now docker
+usermod -aG docker ubuntu || true
+
+echo "=== [3/5] Clonando repositorio en /opt/iot-grupal ==="
+if [ -d /opt/iot-grupal/.git ]; then
+  git -C /opt/iot-grupal fetch origin
+  git -C /opt/iot-grupal reset --hard origin/main
+else
+  git clone "${repo_url}" /opt/iot-grupal
+fi
+chown -R ubuntu:ubuntu /opt/iot-grupal
+
+echo "=== [4/5] Obteniendo IP publica EC2 y escribiendo .env ==="
+IMDS_TOKEN="$(curl -sX PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" || true)"
+if [ -n "$IMDS_TOKEN" ]; then
+  PUBLIC_IP="$(curl -sH "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4 || true)"
+else
+  PUBLIC_IP=""
+fi
+if [ -z "$PUBLIC_IP" ]; then
+  PUBLIC_IP="$(curl -s http://checkip.amazonaws.com || echo 'localhost')"
+fi
+
+cat > /opt/iot-grupal/.env <<EOF
+POSTGRES_USER=${postgres_user}
+POSTGRES_PASSWORD=${postgres_pass}
+POSTGRES_DB=${postgres_db}
+
+PORT=3001
+JWT_SECRET=${jwt_secret}
+GATEWAY_SECRET=${gateway_secret}
+
+ADMIN_NAME=${admin_name}
+ADMIN_EMAIL=${admin_email}
+ADMIN_PASSWORD=${admin_pass}
+
+NEXT_PUBLIC_API_URL=http://$PUBLIC_IP:3001/api/v1
+
+RPI_INPUT_MODE=serial
+AWS_API_URL=http://$PUBLIC_IP:3001
+GATEWAY_ID=raspberry-pi-5-central
+SERIAL_PORT=auto
+SERIAL_BAUD=115200
+SYNC_INTERVAL_SEC=5
+EOF
+chown ubuntu:ubuntu /opt/iot-grupal/.env
+chmod 600 /opt/iot-grupal/.env
+
+echo "=== [5/5] Levantando postgres, mosquitto, api y web ==="
+cd /opt/iot-grupal
+docker compose up -d --build postgres mosquitto api web
+
+echo "=== Despliegue FloraSense EC2 finalizado en http://$PUBLIC_IP:3000 ==="

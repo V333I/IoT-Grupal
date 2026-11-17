@@ -22,6 +22,14 @@ arduino_local_keys/
 *.pfx
 *.p12
 
+# Terraform (estado y variables con secretos/credenciales)
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+*.auto.tfvars
+crash.log
+
 # Bases de datos locales y volúmenes Docker
 *.db
 *.sqlite
