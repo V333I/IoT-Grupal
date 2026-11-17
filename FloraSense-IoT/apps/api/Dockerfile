@@ -9,7 +9,9 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/web/package.json ./apps/web/package.json
 
-RUN npm install
+RUN npm install --workspace=apps/api --include-workspace-root --no-audit --no-fund && \
+    npm cache clean --force && \
+    rm -rf /root/.npm /tmp/*
 
 # Copiar código fuente de la API y esquema Prisma
 COPY apps/api ./apps/api
