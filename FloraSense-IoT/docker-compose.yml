@@ -11,7 +11,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d smart_irrigation"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-smart_irrigation}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -46,11 +46,14 @@ services:
       mosquitto:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/smart_irrigation?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-smart_irrigation}?schema=public
       MQTT_BROKER_URL: mqtt://mosquitto:1883
       PORT: 3001
       JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret}
       GATEWAY_SECRET: ${GATEWAY_SECRET:-change-me-gateway-secret}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrador IoT}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@florasense.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-admin-password}
     restart: unless-stopped
 
   web:
@@ -83,7 +86,7 @@ services:
     volumes:
       - rpi5_data:/data
     environment:
-      AWS_API_URL: http://api:3001
+      AWS_API_URL: ${AWS_API_URL:-http://api:3001}
       GATEWAY_SECRET: ${GATEWAY_SECRET:-change-me-gateway-secret}
       GATEWAY_ID: raspberry-pi-5-central
       INPUT_MODE: ${RPI_INPUT_MODE:-tcp}
@@ -121,7 +124,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/smart_irrigation?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-smart_irrigation}?schema=public
     profiles:
       - tools
 
