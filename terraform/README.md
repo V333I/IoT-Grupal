@@ -1,9 +1,9 @@
-# Despliegue Automatizado en AWS EC2 con Terraform
+# Despliegue Automatizado en AWS (EC2 + Amazon RDS PostgreSQL) con Terraform
 
-Esta carpeta aprovisiona e inicializa automáticamente toda la infraestructura en AWS EC2:
-- **Security Group** con puertos `22` (SSH), `3000` (Web Next.js) y `3001` (API NestJS + Sync RPi 5).
-- **Instancia EC2 Ubuntu 24.04 LTS** (`t3.small` por defecto) con **20 GiB gp3** (evita errores de disco lleno en Docker) y 2 GB de swap.
-- **Instalación y arranque automático (`cloud-init`):** instala Docker, clona `IoT-Grupal`, genera un `.env` seguro con contraseñas aleatorias y levanta `postgres`, `mosquitto`, `api` y `web`.
+Esta carpeta aprovisiona e inicializa automáticamente toda la infraestructura Cloud en AWS cumpliendo con el almacenamiento en nube en **Amazon RDS**:
+- **Amazon RDS PostgreSQL (`db.t3.micro`, 20 GiB):** base de datos administrada privada dentro de la VPC (`publicly_accessible = false`), accesible **únicamente** desde el Security Group de la instancia EC2 en el puerto `5432`.
+- **Instancia EC2 Ubuntu 24.04 LTS (`t3.small`, 20 GiB gp3 + 2 GB swap):** ejecuta `mosquitto`, `api` (NestJS conectado a RDS vía TLS) y `web` (Next.js) sin usar Postgres local.
+- **Security Groups:** puertos `22` (SSH), `3000` (Web Next.js) y `3001` (API + Sync cifrado desde la Raspberry Pi 5).
 
 ---
 
@@ -27,25 +27,25 @@ terraform init
 terraform apply
 ```
 
-Confirma escribiendo `yes`. Luego espera ~3–4 minutos mientras `cloud-init` termina el `docker compose up -d --build`.
+Confirma escribiendo `yes`. La creación del RDS toma ~4–6 minutos y luego la EC2 ejecuta automáticamente `prisma db push` contra el RDS para crear todas las tablas y el usuario administrador semilla.
 
-### Ver URLs y secretos generados (sensibles)
+### Ver URLs, endpoint RDS y secretos generados
 ```powershell
 terraform output
 terraform output -raw admin_password
 terraform output -raw gateway_secret
 ```
 
-*(Para verificar el avance de instalación dentro de la EC2: `ssh -i labsuser.pem ubuntu@<EC2_IP> "sudo tail -f /var/log/florasense-init.log"`.)*
+*(Para ver el log de inicialización dentro de la EC2: `ssh -i labsuser.pem ubuntu@<EC2_IP> "sudo tail -f /var/log/florasense-init.log"`.)*
 
 ### Conectar tu Raspberry Pi 5 a la EC2 recién creada
-Usa la IP pública (`ec2_public_ip`) y el secreto (`terraform output -raw gateway_secret`) en tu Raspberry Pi 5:
+Usa `ec2_public_ip` y `gateway_secret` de Terraform en tu Raspberry Pi 5:
 ```bash
 cd ~/IoT-Grupal/FloraSense-IoT/gateway
 bash setup_rpi5.sh <EC2_PUBLIC_IP> <GATEWAY_SECRET> auto
 ```
 
-### Apagar y eliminar toda la infraestructura de AWS
+### Apagar y eliminar EC2 + RDS de AWS
 ```powershell
 terraform destroy
 ```

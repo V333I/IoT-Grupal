@@ -5,7 +5,7 @@ variable "aws_region" {
 }
 
 variable "project_name" {
-  description = "Prefijo para nombrar la instancia y Security Group en AWS"
+  description = "Prefijo para nombrar EC2, RDS y Security Groups en AWS"
   type        = string
   default     = "florasense-iot-grupal"
 }
@@ -17,7 +17,25 @@ variable "instance_type" {
 }
 
 variable "ebs_volume_gb" {
-  description = "Tamano del disco raiz EBS en GiB (20 GiB evita errores de espacio en Docker)"
+  description = "Tamano del disco raiz EBS de EC2 en GiB (20 GiB evita errores de espacio en Docker)"
+  type        = number
+  default     = 20
+}
+
+variable "rds_engine_version" {
+  description = "Version mayor de PostgreSQL en Amazon RDS"
+  type        = string
+  default     = "16"
+}
+
+variable "rds_instance_class" {
+  description = "Clase de instancia Amazon RDS (db.t3.micro compatible con Free Tier y AWS Academy)"
+  type        = string
+  default     = "db.t3.micro"
+}
+
+variable "rds_allocated_storage" {
+  description = "Almacenamiento en GiB para Amazon RDS PostgreSQL"
   type        = number
   default     = 20
 }
@@ -57,7 +75,7 @@ variable "postgres_db" {
 }
 
 variable "postgres_password" {
-  description = "Opcional: clave de Postgres (si queda vacia, Terraform genera una aleatoria)"
+  description = "Opcional: clave maestra de Amazon RDS (si queda vacia, Terraform genera una aleatoria)"
   type        = string
   sensitive   = true
   default     = ""

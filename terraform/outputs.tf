@@ -3,6 +3,16 @@ output "ec2_public_ip" {
   value       = aws_instance.florasense_ec2.public_ip
 }
 
+output "rds_endpoint" {
+  description = "Endpoint privado de Amazon RDS PostgreSQL en la nube"
+  value       = aws_db_instance.florasense_rds.endpoint
+}
+
+output "rds_database_name" {
+  description = "Nombre de la base de datos en RDS"
+  value       = aws_db_instance.florasense_rds.db_name
+}
+
 output "web_url" {
   description = "URL del dashboard web FloraSense"
   value       = "http://${aws_instance.florasense_ec2.public_ip}:3000"
@@ -31,7 +41,7 @@ output "gateway_secret" {
 }
 
 output "postgres_password" {
-  description = "Contrasena de PostgreSQL (ver con: terraform output -raw postgres_password)"
+  description = "Contrasena maestra de Amazon RDS (ver con: terraform output -raw postgres_password)"
   value       = local.pg_pass
   sensitive   = true
 }

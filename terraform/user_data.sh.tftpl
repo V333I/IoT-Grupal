@@ -27,7 +27,7 @@ else
 fi
 chown -R ubuntu:ubuntu /opt/iot-grupal
 
-echo "=== [4/5] Obteniendo IP publica EC2 y escribiendo .env ==="
+echo "=== [4/5] Obteniendo IP publica EC2 y configurando .env conectado a Amazon RDS ==="
 IMDS_TOKEN="$(curl -sX PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" || true)"
 if [ -n "$IMDS_TOKEN" ]; then
   PUBLIC_IP="$(curl -sH "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4 || true)"
@@ -42,6 +42,7 @@ cat > /opt/iot-grupal/.env <<EOF
 POSTGRES_USER=${postgres_user}
 POSTGRES_PASSWORD=${postgres_pass}
 POSTGRES_DB=${postgres_db}
+DATABASE_URL=${database_url}
 
 PORT=3001
 JWT_SECRET=${jwt_secret}
@@ -63,8 +64,8 @@ EOF
 chown ubuntu:ubuntu /opt/iot-grupal/.env
 chmod 600 /opt/iot-grupal/.env
 
-echo "=== [5/5] Levantando postgres, mosquitto, api y web ==="
+echo "=== [5/5] Levantando mosquitto, api y web conectados a Amazon RDS ==="
 cd /opt/iot-grupal
-docker compose up -d --build postgres mosquitto api web
+docker compose up -d --no-deps --build mosquitto api web
 
-echo "=== Despliegue FloraSense EC2 finalizado en http://$PUBLIC_IP:3000 ==="
+echo "=== Despliegue FloraSense EC2 + RDS finalizado en http://$PUBLIC_IP:3000 ==="
