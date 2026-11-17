@@ -71,7 +71,8 @@ services:
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api/v1}
+      ALLOWED_DEV_ORIGINS: ${ALLOWED_DEV_ORIGINS:-*}
     restart: unless-stopped
 
   rpi5_gateway:
