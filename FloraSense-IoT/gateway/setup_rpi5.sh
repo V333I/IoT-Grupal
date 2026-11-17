@@ -57,8 +57,9 @@ Wants=network-online.target
 Type=simple
 User=$RPI_USER
 WorkingDirectory=$SCRIPT_DIR
+Environment="PYTHONUNBUFFERED=1"
 EnvironmentFile=/etc/florasense-gateway.env
-ExecStart=$SCRIPT_DIR/.venv/bin/python $SCRIPT_DIR/gateway_rpi5.py
+ExecStart=$SCRIPT_DIR/.venv/bin/python -u $SCRIPT_DIR/gateway_rpi5.py
 Restart=always
 RestartSec=5
 
