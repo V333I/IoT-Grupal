@@ -38,6 +38,8 @@ type DeviceOverview = {
   deviceKey: string;
   name: string;
   locationLabel?: string | null;
+  description?: string | null;
+  mac?: string | null;
   status: 'ONLINE' | 'OFFLINE' | 'UNKNOWN';
   mode: 'AUTO' | 'MANUAL';
   lastSeenAt: string | null;
@@ -245,7 +247,9 @@ export function DashboardView() {
         <TopographicPattern />
 
         <HealthStrip
-          deviceId={`${data.deviceKey} (${data.id.substring(0, 6)})`}
+          deviceId={
+            data.mac ? `${data.deviceKey} • MAC ${data.mac}` : `${data.deviceKey} (${data.id.substring(0, 6)})`
+          }
           status={data.status === 'ONLINE' ? 'ONLINE' : 'OFFLINE'}
           lastReading={lastReadingText}
           pumpStatus={lastTelemetry?.pumpOn ? 'ON' : 'OFF'}
@@ -317,8 +321,14 @@ export function DashboardView() {
                             />
                             <h3 className="font-display text-2xl text-ink truncate">{dev.name}</h3>
                           </div>
-                          <div className="text-[11px] font-mono-data text-ink-soft mt-1 uppercase tracking-wider flex items-center gap-2">
+                          <div className="text-[11px] font-mono-data text-ink-soft mt-1 uppercase tracking-wider flex flex-wrap items-center gap-x-2 gap-y-0.5">
                             <span>{dev.deviceKey}</span>
+                            {dev.mac && (
+                              <>
+                                <span>•</span>
+                                <span className="text-water font-semibold">MAC: {dev.mac}</span>
+                              </>
+                            )}
                             <span>•</span>
                             <span>{formatAge(tel?.timestamp)}</span>
                           </div>
@@ -438,6 +448,7 @@ export function DashboardView() {
             <div>
               <div className="text-xs font-bold uppercase tracking-widest text-water mb-1">
                 Detalle del Nodo Seleccionado • {data.deviceKey}
+                {data.mac ? ` • MAC ${data.mac}` : ''}
               </div>
               <h1 className="font-display text-5xl text-ink mb-2">{data.name}</h1>
               <div className="flex flex-wrap items-center gap-3 text-ink-soft text-sm font-mono-data uppercase tracking-wider">

@@ -140,7 +140,7 @@ async function generarClavesRSAParaNodo(bits: number): Promise<RsaKeyParts> {
   };
 }
 
-const MESH_STORAGE_KEY = 'florasense_mesh_nodes_v1';
+const MESH_STORAGE_KEY = 'florasense_mesh_nodes_v2';
 
 function serializeNodes(list: MeshNode[]) {
   return JSON.stringify(
@@ -598,31 +598,33 @@ bool cifrarMensajeHaciaNodo(int indiceDestino, const MensajeMesh& msg, PaqueteMe
     memcpy(pktOut->iv + i, &r, 4);
   }
 
-  br_aes_big_cbcenc_keys aesEncCtx;
+  static br_aes_big_cbcenc_keys aesEncCtx;
   br_aes_big_cbcenc_init(&aesEncCtx, claveSesionAES, 32);
   uint8_t ivCopia[16];
   memcpy(ivCopia, pktOut->iv, 16);
   memcpy(pktOut->payload_aes256, &msg, sizeof(MensajeMesh));
   br_aes_big_cbcenc_run(&aesEncCtx, ivCopia, pktOut->payload_aes256, sizeof(MensajeMesh));
 
-  uint8_t moduloPublicoDestino[RSA_MOD_BYTES];
+  static uint8_t moduloPublicoDestino[RSA_MOD_BYTES];
   memcpy_P(moduloPublicoDestino, TABLA_NODOS[indiceDestino].rsa_pub_mod, RSA_MOD_BYTES);
-  uint8_t expPublico[] = {0x01, 0x00, 0x01};
+  static uint8_t expPublico[] = {0x01, 0x00, 0x01};
 
   br_rsa_public_key pubKey = {
     moduloPublicoDestino, RSA_MOD_BYTES,
     expPublico, sizeof(expPublico)
   };
 
-  br_hmac_drbg_context rng;
+  static br_hmac_drbg_context rng;
   uint32_t semilla = RANDOM_REG32;
   br_hmac_drbg_init(&rng, &br_sha256_vtable, &semilla, sizeof(semilla));
 
+  yield();
   ESP.wdtFeed();
   br_rsa_oaep_encrypt enc = br_rsa_oaep_encrypt_get_default();
   size_t len = enc(&rng.vtable, &br_sha256_vtable, NULL, 0, &pubKey,
                    pktOut->clave_aes_cifrada, RSA_MOD_BYTES, claveSesionAES, 32);
   ESP.wdtFeed();
+  yield();
 
   return (len == RSA_MOD_BYTES);
 }
@@ -638,17 +640,19 @@ bool descifrarMensajeRecibido(PaqueteMeshCifrado* pktIn, MensajeMesh* msgOut) {
   };
 
   size_t len = RSA_MOD_BYTES;
+  yield();
   ESP.wdtFeed();
   br_rsa_oaep_decrypt dec = br_rsa_oaep_decrypt_get_default();
   uint32_t exito = dec(&br_sha256_vtable, NULL, 0, &miClavePrivada, pktIn->clave_aes_cifrada, &len);
   ESP.wdtFeed();
+  yield();
 
   if (exito != 1 || len != 32) return false;
 
   uint8_t claveSesionAES[32];
   memcpy(claveSesionAES, pktIn->clave_aes_cifrada, 32);
 
-  br_aes_big_cbcdec_keys aesDecCtx;
+  static br_aes_big_cbcdec_keys aesDecCtx;
   br_aes_big_cbcdec_init(&aesDecCtx, claveSesionAES, 32);
   uint8_t ivCopia[16];
   memcpy(ivCopia, pktIn->iv, 16);
@@ -659,11 +663,12 @@ bool descifrarMensajeRecibido(PaqueteMeshCifrado* pktIn, MensajeMesh* msgOut) {
 }
 
 void enviarPaqueteMesh(int indiceDestino, const MensajeMesh& msg) {
-  PaqueteMeshCifrado paquete;
+  static PaqueteMeshCifrado paquete;
   if (cifrarMensajeHaciaNodo(indiceDestino, msg, &paquete)) {
     uint8_t macDestino[6];
     memcpy_P(macDestino, TABLA_NODOS[indiceDestino].mac, 6);
     esp_now_send(macDestino, (uint8_t*)&paquete, sizeof(PaqueteMeshCifrado));
+    yield();
   }
 }
 
@@ -735,15 +740,17 @@ void procesarPaqueteEncolado(PaqueteMeshCifrado& pkt) {
   if (idxOrigen < 0) return;
 
   if (memcmp(pkt.mac_destino, miMAC, 6) == 0) {
-    MensajeMesh msg;
+    static MensajeMesh msg;
     if (!descifrarMensajeRecibido(&pkt, &msg)) return;
 
     if (soyConcentrador) {
       const char* nombreOrigen = obtenerNombreNodo(idxOrigen);
       if (msg.tipo == MSG_TELEMETRIA) {
         Serial.printf(
-          "{\\"origen\\":\\"%s\\",\\"temp\\":%.2f,\\"hum\\":%.2f,\\"suelo\\":%.2f,\\"bomba\\":%s,\\"fan\\":%s,\\"seq\\":%u}\\n",
+          "{\\"origen\\":\\"%s\\",\\"mac\\":\\"%02X:%02X:%02X:%02X:%02X:%02X\\",\\"temp\\":%.2f,\\"hum\\":%.2f,\\"suelo\\":%.2f,\\"bomba\\":%s,\\"fan\\":%s,\\"seq\\":%u}\\n",
           nombreOrigen,
+          pkt.mac_origen[0], pkt.mac_origen[1], pkt.mac_origen[2],
+          pkt.mac_origen[3], pkt.mac_origen[4], pkt.mac_origen[5],
           msg.temperatura,
           msg.humedad_aire,
           msg.humedad_suelo,
@@ -753,8 +760,10 @@ void procesarPaqueteEncolado(PaqueteMeshCifrado& pkt) {
         );
       } else if (msg.tipo == MSG_ACK) {
         Serial.printf(
-          "{\\"ack\\":true,\\"origen\\":\\"%s\\",\\"commandId\\":\\"%s\\",\\"status\\":\\"ACKNOWLEDGED\\",\\"bomba\\":%s,\\"fan\\":%s}\\n",
+          "{\\"ack\\":true,\\"origen\\":\\"%s\\",\\"mac\\":\\"%02X:%02X:%02X:%02X:%02X:%02X\\",\\"commandId\\":\\"%s\\",\\"status\\":\\"ACKNOWLEDGED\\",\\"bomba\\":%s,\\"fan\\":%s}\\n",
           nombreOrigen,
+          pkt.mac_origen[0], pkt.mac_origen[1], pkt.mac_origen[2],
+          pkt.mac_origen[3], pkt.mac_origen[4], pkt.mac_origen[5],
           msg.command_id,
           msg.bomba_on ? "true" : "false",
           msg.fan_on ? "true" : "false"
@@ -789,31 +798,37 @@ void procesarComandosSerialRPi5() {
     if (c == '\\n') {
       bufferSerialRPi.trim();
       if (bufferSerialRPi.startsWith("{")) {
-        String destino, cmdId, target, action, durStr;
-        if (extraerCampoJson(bufferSerialRPi, "destino", destino) &&
-            extraerCampoJson(bufferSerialRPi, "action", action)) {
-          extraerCampoJson(bufferSerialRPi, "commandId", cmdId);
-          extraerCampoJson(bufferSerialRPi, "target", target);
-          extraerCampoJson(bufferSerialRPi, "maxDurationSeconds", durStr);
+        int idxDest = -1;
+        static MensajeMesh cmd;
+        {
+          String destino, cmdId, target, action, durStr;
+          if (extraerCampoJson(bufferSerialRPi, "destino", destino) &&
+              extraerCampoJson(bufferSerialRPi, "action", action)) {
+            extraerCampoJson(bufferSerialRPi, "commandId", cmdId);
+            extraerCampoJson(bufferSerialRPi, "target", target);
+            extraerCampoJson(bufferSerialRPi, "maxDurationSeconds", durStr);
 
-          int idxDest = buscarNodoPorNombre(destino.c_str());
-          if (idxDest >= 0) {
-            MensajeMesh cmd;
-            memset(&cmd, 0, sizeof(cmd));
-            cmd.tipo = MSG_COMANDO;
-            cmd.target = (target == "fan") ? TARGET_FAN : TARGET_PUMP;
-            bool encender = (action == "ON" || action == "on");
-            cmd.bomba_on = (cmd.target == TARGET_PUMP && encender) ? 1 : 0;
-            cmd.fan_on   = (cmd.target == TARGET_FAN && encender) ? 1 : 0;
-            cmd.max_duracion = (uint16_t)(durStr.length() > 0 ? durStr.toInt() : 30);
-            cmd.id_paquete = secuenciaEnvio++;
-            strncpy(cmd.command_id, cmdId.c_str(), sizeof(cmd.command_id) - 1);
-
-            enviarPaqueteMesh(idxDest, cmd);
+            idxDest = buscarNodoPorNombre(destino.c_str());
+            if (idxDest >= 0) {
+              memset(&cmd, 0, sizeof(cmd));
+              cmd.tipo = MSG_COMANDO;
+              cmd.target = (target == "fan") ? TARGET_FAN : TARGET_PUMP;
+              bool encender = (action == "ON" || action == "on");
+              cmd.bomba_on = (cmd.target == TARGET_PUMP && encender) ? 1 : 0;
+              cmd.fan_on   = (cmd.target == TARGET_FAN && encender) ? 1 : 0;
+              cmd.max_duracion = (uint16_t)(durStr.length() > 0 ? durStr.toInt() : 30);
+              cmd.id_paquete = secuenciaEnvio++;
+              strncpy(cmd.command_id, cmdId.c_str(), sizeof(cmd.command_id) - 1);
+            }
           }
         }
+        bufferSerialRPi = "";
+        if (idxDest >= 0) {
+          enviarPaqueteMesh(idxDest, cmd);
+        }
+      } else {
+        bufferSerialRPi = "";
       }
-      bufferSerialRPi = "";
     } else if (c != '\\r') {
       bufferSerialRPi += c;
       if (bufferSerialRPi.length() > 384) bufferSerialRPi = "";
@@ -864,7 +879,8 @@ unsigned long ultimoEnvio = 0;
 
 void loop() {
   while (colaTail != colaHead) {
-    PaqueteMeshCifrado pkt = colaRx[colaTail];
+    static PaqueteMeshCifrado pkt;
+    pkt = colaRx[colaTail];
     colaTail = (colaTail + 1) % RX_QUEUE_SIZE;
     procesarPaqueteEncolado(pkt);
   }

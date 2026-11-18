@@ -52,11 +52,15 @@ export class AppService {
         const isOnline =
           device.lastSeenAt !== null && now - device.lastSeenAt.getTime() < 30000;
 
+        const macMatch = device.description?.match(/([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}/);
+
         return {
           id: device.id,
           deviceKey: device.deviceKey,
           name: device.name,
           locationLabel: device.locationLabel,
+          description: device.description,
+          mac: macMatch ? macMatch[0].toUpperCase() : null,
           status: isOnline ? 'ONLINE' : 'OFFLINE',
           mode: device.mode,
           lastSeenAt: device.lastSeenAt,

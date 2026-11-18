@@ -231,6 +231,7 @@ export class GatewayService {
             lastSeenAt: new Date(),
             ...(node.name ? { name: node.name } : {}),
             ...(node.groupLabel ? { locationLabel: node.groupLabel } : {}),
+            ...(node.mac ? { description: `Nodo ESP8266 MAC ${node.mac}` } : {}),
             ...(node.firmwareVersion ? { firmwareVersion: node.firmwareVersion } : {}),
           },
         });
@@ -288,11 +289,11 @@ export class GatewayService {
       }
     }
 
-    // 3. Expirar comandos PENDING viejos (>5 min)
+    // 3. Expirar comandos PENDING/SENT viejos (>2 min) para no acumular pendientes huerfanos
     await this.prisma.pumpCommand.updateMany({
       where: {
-        status: 'PENDING',
-        requestedAt: { lt: new Date(Date.now() - 5 * 60 * 1000) },
+        status: { in: ['PENDING', 'SENT'] },
+        requestedAt: { lt: new Date(Date.now() - 2 * 60 * 1000) },
       },
       data: { status: 'EXPIRED' },
     });
