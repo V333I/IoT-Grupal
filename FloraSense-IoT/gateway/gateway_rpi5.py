@@ -302,6 +302,7 @@ def main():
                         new_conn = serial.Serial(port, SERIAL_BAUD, timeout=1)
                         with serial_lock:
                             serial_conn_holder[0] = new_conn
+                        conn = new_conn
                         print(f"[RPi5 Serial] Concentrador conectado en {port} @ {SERIAL_BAUD} bps")
                     except Exception as exc:
                         now = time.time()
@@ -314,7 +315,10 @@ def main():
                 try:
                     raw_line = conn.readline().decode("utf-8", errors="ignore")
                     if raw_line:
-                        ingest_json_line(raw_line, latest_nodes, acks_queue, state_lock, db, db_lock)
+                        try:
+                            ingest_json_line(raw_line, latest_nodes, acks_queue, state_lock, db, db_lock)
+                        except Exception as parse_exc:
+                            print(f"[RPi5 Serial] Línea ignorada ({parse_exc}): {raw_line.strip()[:120]}")
                 except Exception as exc:
                     print(f"[RPi5 Serial] Concentrador USB desconectado ({exc}). Reintentando...")
                     with serial_lock:
