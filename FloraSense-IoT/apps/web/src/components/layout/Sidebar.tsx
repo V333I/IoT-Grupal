@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Droplets, Activity, Settings, Calendar, History, Sprout, LogOut, Shield, KeyRound } from 'lucide-react';
+import { Droplets, Activity, Settings, Calendar, History, Sprout, LogOut, Shield, KeyRound, Lock } from 'lucide-react';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -13,6 +13,7 @@ export function Sidebar() {
     { icon: History, label: 'Historial', href: '/history' },
     { icon: Calendar, label: 'Reglas', href: '/rules' },
     { icon: KeyRound, label: 'Red Mesh / MAC', href: '/mesh' },
+    { icon: Lock, label: 'Tráfico Cifrado E2E', href: '/encryption' },
     { icon: Settings, label: 'Configuración', href: '/settings' },
     { icon: Shield, label: 'Políticas', href: '/policies' },
   ];

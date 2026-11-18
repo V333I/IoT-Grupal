@@ -18,6 +18,35 @@ export interface GatewayNodeTelemetry {
   fanOn?: boolean;
   rssi?: number;
   firmwareVersion?: string;
+  meshIv?: string;
+  meshRsa?: string;
+  meshCipher?: string;
+}
+
+export interface GatewayPacketTrace {
+  id: string;
+  receivedAt: string;
+  gatewayId: string;
+  encrypted: boolean;
+  algorithm: string;
+  cloudEnvelope: {
+    iv: string | null;
+    encryptedKey: string | null;
+    payload: string | null;
+    payloadBytes: number;
+  };
+  nodes: Array<{
+    deviceKey: string;
+    mac: string | null;
+    meshIv: string | null;
+    meshRsa: string | null;
+    meshCipher: string | null;
+    temperatureC: number | null;
+    airHumidityPct: number | null;
+    soilMoisturePct: number | null;
+    pumpOn: boolean;
+    fanOn: boolean;
+  }>;
 }
 
 export interface GatewayAck {
@@ -45,6 +74,7 @@ export class GatewayService {
   private lastGatewayId: string | null = null;
   private totalEncryptedSyncs = 0;
   private lastNodesCount = 0;
+  private recentPackets: GatewayPacketTrace[] = [];
 
   constructor(
     private readonly prisma: PrismaService,
@@ -105,6 +135,10 @@ export class GatewayService {
     };
   }
 
+  getRecentPackets(limit = 15): GatewayPacketTrace[] {
+    return this.recentPackets.slice(0, Math.max(1, Math.min(20, limit)));
+  }
+
   validateGatewaySecret(secretHeader?: string) {
     const expected = process.env.GATEWAY_SECRET || 'change-me-gateway-secret';
     if (!secretHeader || secretHeader !== expected) {
@@ -157,6 +191,39 @@ export class GatewayService {
     this.lastNodesCount = nodes.length;
     if (encrypted) {
       this.totalEncryptedSyncs += 1;
+    }
+
+    const packetTrace: GatewayPacketTrace = {
+      id: crypto.randomUUID(),
+      receivedAt: this.lastSyncAt.toISOString(),
+      gatewayId: this.lastGatewayId,
+      encrypted,
+      algorithm: encrypted ? 'RSA-OAEP (SHA-256) + AES-256-CBC' : 'PLAIN',
+      cloudEnvelope: {
+        iv: typeof body?.iv === 'string' ? body.iv : null,
+        encryptedKey: typeof body?.encryptedKey === 'string' ? body.encryptedKey : null,
+        payload: typeof body?.payload === 'string' ? body.payload : null,
+        payloadBytes:
+          typeof body?.payload === 'string'
+            ? Buffer.from(body.payload, 'base64').length
+            : Buffer.byteLength(JSON.stringify(body ?? {}), 'utf8'),
+      },
+      nodes: nodes.map((n) => ({
+        deviceKey: String(n.deviceKey || 'DESCONOCIDO'),
+        mac: n.mac ? String(n.mac).toUpperCase() : null,
+        meshIv: n.meshIv ? String(n.meshIv) : null,
+        meshRsa: n.meshRsa ? String(n.meshRsa) : null,
+        meshCipher: n.meshCipher ? String(n.meshCipher) : null,
+        temperatureC: n.temperatureC ?? null,
+        airHumidityPct: n.airHumidityPct ?? null,
+        soilMoisturePct: n.soilMoisturePct ?? null,
+        pumpOn: Boolean(n.pumpOn),
+        fanOn: Boolean(n.fanOn),
+      })),
+    };
+    this.recentPackets.unshift(packetTrace);
+    if (this.recentPackets.length > 20) {
+      this.recentPackets.length = 20;
     }
 
     // 1. Procesar ACKs de comandos ejecutados en la red Mesh

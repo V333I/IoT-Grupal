@@ -735,11 +735,35 @@ void alRecibirDatosMesh(uint8_t *macSaltoAnterior, uint8_t *datos, uint8_t len) 
   }
 }
 
+static void bytesAHex(const uint8_t* src, int len, char* dst) {
+  static const char HEX[] = "0123456789ABCDEF";
+  for (int i = 0; i < len; i++) {
+    dst[i * 2]     = HEX[(src[i] >> 4) & 0x0F];
+    dst[i * 2 + 1] = HEX[src[i] & 0x0F];
+  }
+  dst[len * 2] = '\\0';
+}
+
 void procesarPaqueteEncolado(PaqueteMeshCifrado& pkt) {
   int idxOrigen = buscarNodoPorMAC(pkt.mac_origen);
   if (idxOrigen < 0) return;
 
   if (memcmp(pkt.mac_destino, miMAC, 6) == 0) {
+    static char meshIvHex[33];
+    static char meshRsaHex[33];
+    static char meshCipherHex[49];
+    if (soyConcentrador) {
+      bytesAHex(pkt.iv, 16, meshIvHex);
+      bytesAHex(pkt.clave_aes_cifrada, 16, meshRsaHex);
+      bytesAHex(pkt.payload_aes256, 24, meshCipherHex);
+      Serial.printf(
+        "[ESP-NOW RX CIFRADO] MAC=%02X:%02X:%02X:%02X:%02X:%02X | IV=%s | AES256=%s...\\n",
+        pkt.mac_origen[0], pkt.mac_origen[1], pkt.mac_origen[2],
+        pkt.mac_origen[3], pkt.mac_origen[4], pkt.mac_origen[5],
+        meshIvHex, meshCipherHex
+      );
+    }
+
     static MensajeMesh msg;
     if (!descifrarMensajeRecibido(&pkt, &msg)) return;
 
@@ -747,7 +771,7 @@ void procesarPaqueteEncolado(PaqueteMeshCifrado& pkt) {
       const char* nombreOrigen = obtenerNombreNodo(idxOrigen);
       if (msg.tipo == MSG_TELEMETRIA) {
         Serial.printf(
-          "{\\"origen\\":\\"%s\\",\\"mac\\":\\"%02X:%02X:%02X:%02X:%02X:%02X\\",\\"temp\\":%.2f,\\"hum\\":%.2f,\\"suelo\\":%.2f,\\"bomba\\":%s,\\"fan\\":%s,\\"seq\\":%u}\\n",
+          "{\\"origen\\":\\"%s\\",\\"mac\\":\\"%02X:%02X:%02X:%02X:%02X:%02X\\",\\"temp\\":%.2f,\\"hum\\":%.2f,\\"suelo\\":%.2f,\\"bomba\\":%s,\\"fan\\":%s,\\"seq\\":%u,\\"meshIv\\":\\"%s\\",\\"meshRsa\\":\\"%s\\",\\"meshCipher\\":\\"%s\\"}\\n",
           nombreOrigen,
           pkt.mac_origen[0], pkt.mac_origen[1], pkt.mac_origen[2],
           pkt.mac_origen[3], pkt.mac_origen[4], pkt.mac_origen[5],
@@ -756,7 +780,10 @@ void procesarPaqueteEncolado(PaqueteMeshCifrado& pkt) {
           msg.humedad_suelo,
           msg.bomba_on ? "true" : "false",
           msg.fan_on ? "true" : "false",
-          msg.id_paquete
+          msg.id_paquete,
+          meshIvHex,
+          meshRsaHex,
+          meshCipherHex
         );
       } else if (msg.tipo == MSG_ACK) {
         Serial.printf(

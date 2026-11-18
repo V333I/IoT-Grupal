@@ -94,6 +94,9 @@ def normalize_node_packet(raw: dict) -> dict | None:
         "fanOn": bool(raw.get("fanOn") if raw.get("fanOn") is not None else raw.get("fan", False)),
         "rssi": raw.get("rssi"),
         "firmwareVersion": raw.get("firmwareVersion") or "esp8266-mesh-c6",
+        "meshIv": raw.get("meshIv"),
+        "meshRsa": raw.get("meshRsa"),
+        "meshCipher": raw.get("meshCipher"),
     }
 
 
@@ -406,6 +409,9 @@ def main():
                     "acks": acks_batch,
                 }
                 encrypted_body = encrypt_hybrid_rsa_aes256(aws_public_key_pem, envelope_plain)
+                print(
+                    f"[RPi5 -> AWS CIFRADO] iv={encrypted_body['iv']} | key={encrypted_body['encryptedKey'][:28]}... | payload={encrypted_body['payload'][:44]}..."
+                )
 
                 resp = requests.post(
                     f"{AWS_API_URL}/api/gateway/sync",

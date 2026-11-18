@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, UseGuards } from '@nestjs/common';
 import { GatewayService } from './gateway.service.js';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 
 @Controller('api/gateway')
 export class GatewayController {
@@ -13,6 +14,12 @@ export class GatewayController {
   @Get('status')
   getStatus() {
     return this.gatewayService.getStatus();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('packets')
+  getRecentPackets() {
+    return this.gatewayService.getRecentPackets(15);
   }
 
   @Post('sync')
