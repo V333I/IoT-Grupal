@@ -736,10 +736,10 @@ void alRecibirDatosMesh(uint8_t *macSaltoAnterior, uint8_t *datos, uint8_t len) 
 }
 
 static void bytesAHex(const uint8_t* src, int len, char* dst) {
-  static const char HEX[] = "0123456789ABCDEF";
+  static const char HEX_CHARS[] = "0123456789ABCDEF";
   for (int i = 0; i < len; i++) {
-    dst[i * 2]     = HEX[(src[i] >> 4) & 0x0F];
-    dst[i * 2 + 1] = HEX[src[i] & 0x0F];
+    dst[i * 2]     = HEX_CHARS[(src[i] >> 4) & 0x0F];
+    dst[i * 2 + 1] = HEX_CHARS[src[i] & 0x0F];
   }
   dst[len * 2] = '\\0';
 }
