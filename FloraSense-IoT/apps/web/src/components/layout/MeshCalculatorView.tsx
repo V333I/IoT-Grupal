@@ -222,8 +222,11 @@ export function MeshCalculatorView() {
 
     for (let i = 1; i <= cantidadNodos; i++) {
       const hexIdx = i.toString(16).toUpperCase().padStart(2, '0');
-      const macNodo =
-        i === 1 && prefijo === 'GRUPO' ? 'A4:CF:12:FE:F2:CC' : `24:6F:28:AA:01:${hexIdx}`;
+      let macNodo = `24:6F:28:AA:01:${hexIdx}`;
+      if (prefijo === 'GRUPO') {
+        if (i === 1) macNodo = 'FC:F5:C4:8D:57:2E';
+        else if (i === 3) macNodo = 'A4:CF:12:FE:F2:CC';
+      }
       plantillaBase.push({
         id: genId(),
         nombre: `${prefijo}_${i}`,
@@ -459,16 +462,24 @@ ${bytesToCHexArray(nodoActivo.rsa.qi, 12, '  ')}
 #include <ESP8266WiFi.h>
 #include <espnow.h>
 #include <bearssl/bearssl.h>
+#include <DHT.h>
 
 #include "directorio_publico.h"
 #include "clave_privada_nodo.h"
 
-// Pines por defecto (ajusta según el cableado de tu grupo)
-const int SOIL_MOISTURE_PIN = A0; // Sensor humedad de tierra (YL-69)
-const int PUMP_PIN          = 5;  // D1 (GPIO5) - Relé Bomba Sumergible
-const int FAN_PIN           = 4;  // D2 (GPIO4) - Relé Extractor/Ventilador (opcional)
+// Pines reales del invernadero (basados en iotlabcompleto.ino)
+#define DHT_PIN             4     // Pin D2 (GPIO4) -> Sensor DHT22 (AM2302)
+#define DHTTYPE             DHT22
+const int SOIL_MOISTURE_PIN = A0; // Sensor humedad de suelo
+const int PUMP_PIN          = 5;  // Pin D1 (GPIO5) -> Relé Bomba (activo en LOW)
+const int FAN_PIN           = 14; // Pin D5 (GPIO14) -> Ventilador/Extractor
+#define RELAY_ON            LOW
+#define RELAY_OFF           HIGH
+
 const int DRY_ADC           = 1023;
-const int WET_ADC           = 300;
+const int WET_ADC           = 350;
+
+DHT dht(DHT_PIN, DHTTYPE);
 
 #define MSG_TELEMETRIA  1
 #define MSG_COMANDO     2
@@ -509,7 +520,10 @@ uint32_t secuenciaEnvio = 1;
 
 bool estadoBomba = false;
 bool estadoFan = false;
+bool bombaManual = false;
 unsigned long bombaApagadoAutoMs = 0;
+float ultimaTempValid = 24.5f;
+float ultimaHumValid = 60.0f;
 
 // Cola de recepción segura fuera de la interrupción ESP-NOW
 #define RX_QUEUE_SIZE 4
@@ -660,14 +674,36 @@ float leerHumedadSueloPct() {
 }
 
 void enviarTelemetriaAConcentrador() {
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+  if (!isnan(h) && !isnan(t)) {
+    ultimaHumValid = h;
+    ultimaTempValid = t;
+  } else {
+    Serial.println("[DHT22] Aviso: sin lectura en D2 (GPIO4), enviando ultima lectura valida.");
+  }
+
+  float sueloPct = leerHumedadSueloPct();
+
+  // Riego automatico local si no hay override manual desde la web
+  if (!bombaManual) {
+    if (sueloPct < 40.0f && !estadoBomba) {
+      estadoBomba = true;
+      digitalWrite(PUMP_PIN, RELAY_ON);
+    } else if (sueloPct >= 60.0f && estadoBomba) {
+      estadoBomba = false;
+      digitalWrite(PUMP_PIN, RELAY_OFF);
+    }
+  }
+
   MensajeMesh msg;
   memset(&msg, 0, sizeof(msg));
   msg.tipo          = MSG_TELEMETRIA;
   msg.bomba_on      = estadoBomba ? 1 : 0;
   msg.fan_on        = estadoFan ? 1 : 0;
-  msg.temperatura   = 24.5f; // Reemplazar con lectura real DHT11/DHT22 de tu grupo
-  msg.humedad_aire  = 58.0f; // Reemplazar con lectura real DHT11/DHT22 de tu grupo
-  msg.humedad_suelo = leerHumedadSueloPct();
+  msg.temperatura   = ultimaTempValid;
+  msg.humedad_aire  = ultimaHumValid;
+  msg.humedad_suelo = sueloPct;
   msg.id_paquete    = secuenciaEnvio++;
 
   enviarPaqueteMesh(INDICE_CONCENTRADOR, msg);
@@ -730,7 +766,8 @@ void procesarPaqueteEncolado(PaqueteMeshCifrado& pkt) {
         digitalWrite(FAN_PIN, estadoFan ? HIGH : LOW);
       } else {
         estadoBomba = (msg.bomba_on == 1);
-        digitalWrite(PUMP_PIN, estadoBomba ? HIGH : LOW);
+        bombaManual = estadoBomba;
+        digitalWrite(PUMP_PIN, estadoBomba ? RELAY_ON : RELAY_OFF);
         if (estadoBomba && msg.max_duracion > 0) {
           bombaApagadoAutoMs = millis() + ((unsigned long)msg.max_duracion * 1000UL);
         } else {
@@ -787,10 +824,11 @@ void procesarComandosSerialRPi5() {
 void setup() {
   pinMode(PUMP_PIN, OUTPUT);
   pinMode(FAN_PIN, OUTPUT);
-  digitalWrite(PUMP_PIN, LOW);
+  digitalWrite(PUMP_PIN, RELAY_OFF);
   digitalWrite(FAN_PIN, LOW);
 
   Serial.begin(115200);
+  dht.begin();
   delay(500);
 
   WiFi.mode(WIFI_STA);
@@ -837,8 +875,9 @@ void loop() {
 
   if (!soyConcentrador && estadoBomba && bombaApagadoAutoMs > 0 && millis() >= bombaApagadoAutoMs) {
     estadoBomba = false;
+    bombaManual = false;
     bombaApagadoAutoMs = 0;
-    digitalWrite(PUMP_PIN, LOW);
+    digitalWrite(PUMP_PIN, RELAY_OFF);
     enviarTelemetriaAConcentrador();
   }
 
