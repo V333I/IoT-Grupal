@@ -139,6 +139,24 @@ export class GatewayService {
     return this.recentPackets.slice(0, Math.max(1, Math.min(20, limit)));
   }
 
+  generateMeshRsaKeyPair(bits = 1024) {
+    const modulusLength = bits === 2048 ? 2048 : 1024;
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength,
+      publicExponent: 0x10001,
+    });
+    const jwk = privateKey.export({ format: 'jwk' }) as Record<string, string>;
+    return {
+      bits: modulusLength,
+      n: jwk.n,
+      p: jwk.p,
+      q: jwk.q,
+      dp: jwk.dp,
+      dq: jwk.dq,
+      qi: jwk.qi,
+    };
+  }
+
   validateGatewaySecret(secretHeader?: string) {
     const expected = process.env.GATEWAY_SECRET || 'change-me-gateway-secret';
     if (!secretHeader || secretHeader !== expected) {

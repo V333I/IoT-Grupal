@@ -16,6 +16,7 @@ import {
 import { Sidebar } from './Sidebar';
 import { LoginView } from './LoginView';
 import { TopographicPattern } from '../ui/TopographicPattern';
+import { apiFetch } from '../../lib/api';
 
 type RsaKeyParts = {
   n: Uint8Array;
@@ -109,34 +110,46 @@ function crearMacEspressif(indice: number): string {
 }
 
 async function generarClavesRSAParaNodo(bits: number): Promise<RsaKeyParts> {
-  if (typeof window === 'undefined' || !window.crypto?.subtle) {
-    throw new Error(
-      'WebCrypto requiere un contexto seguro (http://localhost o HTTPS) para generar claves RSA reales.',
-    );
-  }
   const modBytes = bits / 8;
   const primeBytes = modBytes / 2;
 
-  const keyPair = await window.crypto.subtle.generateKey(
-    {
-      name: 'RSA-OAEP',
-      modulusLength: bits,
-      publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
-      hash: 'SHA-256',
-    },
-    true,
-    ['encrypt', 'decrypt'],
-  );
+  if (typeof window !== 'undefined' && window.crypto?.subtle) {
+    const keyPair = await window.crypto.subtle.generateKey(
+      {
+        name: 'RSA-OAEP',
+        modulusLength: bits,
+        publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+        hash: 'SHA-256',
+      },
+      true,
+      ['encrypt', 'decrypt'],
+    );
 
-  const jwkPriv = await window.crypto.subtle.exportKey('jwk', keyPair.privateKey);
+    const jwkPriv = await window.crypto.subtle.exportKey('jwk', keyPair.privateKey);
 
+    return {
+      n: base64UrlToBytes(jwkPriv.n!, modBytes),
+      p: base64UrlToBytes(jwkPriv.p!, primeBytes),
+      q: base64UrlToBytes(jwkPriv.q!, primeBytes),
+      dp: base64UrlToBytes(jwkPriv.dp!, primeBytes),
+      dq: base64UrlToBytes(jwkPriv.dq!, primeBytes),
+      qi: base64UrlToBytes(jwkPriv.qi!, primeBytes),
+    };
+  }
+
+  // Fallback en contextos HTTP remotos (ej. EC2 sin HTTPS): genera el par RSA en el backend API
+  const res = await apiFetch(`/api/gateway/generate-rsa?bits=${bits}`);
+  if (!res.ok) {
+    throw new Error('No se pudo generar el par RSA desde la API.');
+  }
+  const jwkPriv = await res.json();
   return {
-    n: base64UrlToBytes(jwkPriv.n!, modBytes),
-    p: base64UrlToBytes(jwkPriv.p!, primeBytes),
-    q: base64UrlToBytes(jwkPriv.q!, primeBytes),
-    dp: base64UrlToBytes(jwkPriv.dp!, primeBytes),
-    dq: base64UrlToBytes(jwkPriv.dq!, primeBytes),
-    qi: base64UrlToBytes(jwkPriv.qi!, primeBytes),
+    n: base64UrlToBytes(jwkPriv.n, modBytes),
+    p: base64UrlToBytes(jwkPriv.p, primeBytes),
+    q: base64UrlToBytes(jwkPriv.q, primeBytes),
+    dp: base64UrlToBytes(jwkPriv.dp, primeBytes),
+    dq: base64UrlToBytes(jwkPriv.dq, primeBytes),
+    qi: base64UrlToBytes(jwkPriv.qi, primeBytes),
   };
 }
 
