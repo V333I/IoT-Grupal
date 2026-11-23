@@ -112,12 +112,8 @@ export function DashboardView() {
         if (list.length > 0) {
           const saved = safeGetItem('fs_active_device');
           const savedDevice = saved ? list.find((d) => d.id === saved) : undefined;
-          const onlineDevice = list.find((d) => d.status === 'ONLINE');
-
-          let nextId = savedDevice ? savedDevice.id : list[0].id;
-          if (!manualSelectRef.current && (!savedDevice || savedDevice.status !== 'ONLINE') && onlineDevice) {
-            nextId = onlineDevice.id;
-          }
+          const ownDevice = list.find((d) => isDeviceControllable(d));
+          const nextId = savedDevice ? savedDevice.id : (ownDevice ? ownDevice.id : list[0].id);
 
           setSelectedId(nextId);
           if (nextId !== saved) safeSetItem('fs_active_device', nextId);

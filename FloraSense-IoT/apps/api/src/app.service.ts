@@ -82,10 +82,11 @@ export class AppService {
     );
 
     overview.sort((a, b) => {
-      if (a.status !== b.status) {
-        return a.status === 'ONLINE' ? -1 : 1;
+      if (a.canControl !== b.canControl) {
+        return a.canControl ? -1 : 1;
       }
-      return a.deviceKey.localeCompare(b.deviceKey);
+      const keyCmp = a.deviceKey.localeCompare(b.deviceKey);
+      return keyCmp !== 0 ? keyCmp : a.id.localeCompare(b.id);
     });
 
     return overview;
