@@ -3,7 +3,7 @@ import { apiFetch } from '../../lib/api';
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Droplets, Thermometer, Wind, Power, ShieldCheck, Radio, Loader2 } from 'lucide-react';
+import { Droplets, Thermometer, Wind, Power, ShieldCheck, Radio, Loader2, Eye } from 'lucide-react';
 import { HealthStrip } from '../domain/HealthStrip';
 import { SoilMoistureInstrument } from '../domain/SoilMoistureInstrument';
 import { PumpControl } from '../domain/PumpControl';
@@ -27,6 +27,8 @@ const safeSetItem = (k: string, v: string) => {
     if (typeof window !== 'undefined') window.localStorage.setItem(k, v);
   } catch {}
 };
+const isDeviceControllable = (dev: DeviceOverview) =>
+  dev.canControl !== undefined ? dev.canControl : dev.deviceKey.toUpperCase() === 'INVERNADERO_1';
 
 type LastEvent = {
   startedAt: string;
@@ -42,6 +44,7 @@ type DeviceOverview = {
   mac?: string | null;
   status: 'ONLINE' | 'OFFLINE' | 'UNKNOWN';
   mode: 'AUTO' | 'MANUAL';
+  canControl?: boolean;
   lastSeenAt: string | null;
   pendingCommands: number;
   lastTelemetry: {
@@ -299,6 +302,7 @@ export function DashboardView() {
                 const soilPct = tel?.soilMoisturePct ?? 0;
                 const pumpOn = Boolean(tel?.pumpOn);
                 const isToggling = togglingPumpId === dev.id;
+                const controllable = isDeviceControllable(dev);
 
                 return (
                   <div
@@ -337,12 +341,14 @@ export function DashboardView() {
                         <div className="flex flex-col items-end gap-1 shrink-0">
                           <span
                             className={`text-[10px] font-mono-data px-2.5 py-0.5 rounded-full uppercase font-bold ${
-                              dev.mode === 'AUTO'
-                                ? 'bg-moss/15 text-moss'
-                                : 'bg-line text-ink-soft'
+                              !controllable
+                                ? 'bg-line text-ink-soft'
+                                : dev.mode === 'AUTO'
+                                  ? 'bg-moss/15 text-moss'
+                                  : 'bg-line text-ink-soft'
                             }`}
                           >
-                            {dev.mode}
+                            {controllable ? dev.mode : 'SOLO LECTURA'}
                           </span>
                           {isSelected && (
                             <span className="text-[10px] font-bold uppercase tracking-widest text-water">
@@ -415,28 +421,35 @@ export function DashboardView() {
                       </div>
                     </div>
 
-                    {/* Control bidireccional rápido de bomba por grupo */}
-                    <button
-                      onClick={(e) => handleQuickPumpToggle(e, dev)}
-                      disabled={isToggling}
-                      className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors ${
-                        pumpOn
-                          ? 'bg-warning/15 text-warning hover:bg-warning/25'
-                          : 'bg-water text-canvas hover:bg-water-soft'
-                      }`}
-                    >
-                      {isToggling ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Power className="w-3.5 h-3.5" />
-                      )}
-                      {pumpOn ? 'Apagar Bomba' : 'Encender Bomba'}
-                      {dev.pendingCommands > 0 && (
-                        <span className="ml-1 text-[10px] opacity-80">
-                          ({dev.pendingCommands} env.)
-                        </span>
-                      )}
-                    </button>
+                    {/* Control bidireccional rápido solo para nodos propios */}
+                    {controllable ? (
+                      <button
+                        onClick={(e) => handleQuickPumpToggle(e, dev)}
+                        disabled={isToggling}
+                        className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors ${
+                          pumpOn
+                            ? 'bg-warning/15 text-warning hover:bg-warning/25'
+                            : 'bg-water text-canvas hover:bg-water-soft'
+                        }`}
+                      >
+                        {isToggling ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Power className="w-3.5 h-3.5" />
+                        )}
+                        {pumpOn ? 'Apagar Bomba' : 'Encender Bomba'}
+                        {dev.pendingCommands > 0 && (
+                          <span className="ml-1 text-[10px] opacity-80">
+                            ({dev.pendingCommands} env.)
+                          </span>
+                        )}
+                      </button>
+                    ) : (
+                      <div className="w-full py-2.5 px-4 rounded-xl bg-line/40 border border-line text-ink-soft text-[11px] font-mono-data uppercase tracking-wider flex items-center justify-center gap-2">
+                        <Eye className="w-3.5 h-3.5" />
+                        Solo lectura • Grupo externo
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -452,18 +465,25 @@ export function DashboardView() {
               </div>
               <h1 className="font-display text-5xl text-ink mb-2">{data.name}</h1>
               <div className="flex flex-wrap items-center gap-3 text-ink-soft text-sm font-mono-data uppercase tracking-wider">
-                <button
-                  onClick={() => handleToggleMode(data)}
-                  disabled={togglingModeId === data.id}
-                  className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
-                    data.mode === 'AUTO'
-                      ? 'bg-moss/15 text-moss hover:bg-moss/25'
-                      : 'bg-line text-ink hover:bg-line/80'
-                  }`}
-                  title="Haz clic para alternar entre modo AUTO y MANUAL"
-                >
-                  Modo {data.mode} (cambiar)
-                </button>
+                {isDeviceControllable(data) ? (
+                  <button
+                    onClick={() => handleToggleMode(data)}
+                    disabled={togglingModeId === data.id}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+                      data.mode === 'AUTO'
+                        ? 'bg-moss/15 text-moss hover:bg-moss/25'
+                        : 'bg-line text-ink hover:bg-line/80'
+                    }`}
+                    title="Haz clic para alternar entre modo AUTO y MANUAL"
+                  >
+                    Modo {data.mode} (cambiar)
+                  </button>
+                ) : (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-line text-ink-soft inline-flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5" />
+                    Solo lectura • Grupo externo
+                  </span>
+                )}
                 <span>•</span>
                 <span>Sync: {lastReadingText}</span>
               </div>
@@ -529,6 +549,7 @@ export function DashboardView() {
                 pumpOn={lastTelemetry?.pumpOn || false}
                 lastCycle={lastCycleText}
                 onRefresh={fetchOverview}
+                readOnly={!isDeviceControllable(data)}
               />
 
               <div
@@ -594,6 +615,7 @@ export function DashboardView() {
                 fanOn={lastTelemetry?.fanOn || false}
                 lastCycle="Nunca"
                 onRefresh={fetchOverview}
+                readOnly={!isDeviceControllable(data)}
               />
 
               <div

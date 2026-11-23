@@ -3,9 +3,21 @@ import { apiFetch } from '../../lib/api';
 
 
 import React, { useState } from 'react';
-import { Droplets, Clock, Power, Loader2 } from 'lucide-react';
+import { Droplets, Clock, Power, Loader2, Eye } from 'lucide-react';
 
-export function PumpControl({ deviceId, pumpOn, lastCycle, onRefresh }: { deviceId: string, pumpOn: boolean, lastCycle?: string, onRefresh?: () => void }) {
+export function PumpControl({
+  deviceId,
+  pumpOn,
+  lastCycle,
+  onRefresh,
+  readOnly = false,
+}: {
+  deviceId: string;
+  pumpOn: boolean;
+  lastCycle?: string;
+  onRefresh?: () => void;
+  readOnly?: boolean;
+}) {
   const [loading, setLoading] = useState(false);
 
   const togglePump = async () => {
@@ -61,19 +73,26 @@ export function PumpControl({ deviceId, pumpOn, lastCycle, onRefresh }: { device
           )}
         </div>
 
-        <button 
-          onClick={togglePump}
-          disabled={loading}
-          className={`mt-8 w-full py-4 rounded-xl flex items-center justify-center gap-3 font-bold tracking-widest text-xs uppercase transition-colors
-            ${pumpOn 
-              ? 'bg-warning/10 text-warning hover:bg-warning/20' 
-              : 'bg-water text-canvas hover:bg-water-soft'
-            }
-          `}
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
-          {pumpOn ? 'Apagar Manualmente' : 'Forzar Riego Manual'}
-        </button>
+        {readOnly ? (
+          <div className="mt-8 w-full py-3.5 px-4 rounded-xl bg-line/40 border border-line flex items-center justify-center gap-2 font-mono-data text-xs uppercase tracking-wider text-ink-soft">
+            <Eye className="w-4 h-4" />
+            Solo lectura • Nodo de otro grupo
+          </div>
+        ) : (
+          <button 
+            onClick={togglePump}
+            disabled={loading}
+            className={`mt-8 w-full py-4 rounded-xl flex items-center justify-center gap-3 font-bold tracking-widest text-xs uppercase transition-colors
+              ${pumpOn 
+                ? 'bg-warning/10 text-warning hover:bg-warning/20' 
+                : 'bg-water text-canvas hover:bg-water-soft'
+              }
+            `}
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
+            {pumpOn ? 'Apagar Manualmente' : 'Forzar Riego Manual'}
+          </button>
+        )}
       </div>
     </div>
   );

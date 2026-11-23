@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaService } from '../prisma.service.js';
 import { RulesService } from '../mqtt/rules.service.js';
+import { isControllableDevice } from '../device-ownership.js';
 
 export interface GatewayNodeTelemetry {
   deviceKey: string;
@@ -369,7 +370,11 @@ export class GatewayService {
         }
       }
 
-      if (device.mode === 'AUTO' && node.soilMoisturePct !== undefined) {
+      if (
+        isControllableDevice(device.deviceKey) &&
+        device.mode === 'AUTO' &&
+        node.soilMoisturePct !== undefined
+      ) {
         await this.rulesService.evaluateRules(device.id, node.soilMoisturePct);
       }
     }

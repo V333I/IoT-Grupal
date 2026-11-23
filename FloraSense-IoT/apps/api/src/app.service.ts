@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from './prisma.service.js';
 import { RulesService } from './mqtt/rules.service.js';
+import { isControllableDevice } from './device-ownership.js';
 
 @Injectable()
 export class AppService {
@@ -63,6 +64,7 @@ export class AppService {
           mac: macMatch ? macMatch[0].toUpperCase() : null,
           status: isOnline ? 'ONLINE' : 'OFFLINE',
           mode: device.mode,
+          canControl: isControllableDevice(device.deviceKey),
           lastSeenAt: device.lastSeenAt,
           firmwareVersion: device.firmwareVersion,
           pendingCommands,
@@ -106,9 +108,16 @@ export class AppService {
     });
   }
 
+  private assertControllable(deviceKey: string) {
+    if (!isControllableDevice(deviceKey)) {
+      throw new ForbiddenException('Este nodo pertenece a otro grupo y es de solo lectura.');
+    }
+  }
+
   async updateDeviceMode(id: string, mode: string) {
     const device = await this.prisma.device.findUnique({ where: { id } });
     if (!device) throw new NotFoundException('Device not found');
+    this.assertControllable(device.deviceKey);
     return this.prisma.device.update({
       where: { id },
       data: { mode },
@@ -155,6 +164,7 @@ export class AppService {
   async sendPumpCommand(deviceId: string, action: string, durationSeconds: number, userName: string) {
     const device = await this.prisma.device.findUnique({ where: { id: deviceId } });
     if (!device) throw new NotFoundException('Device not found');
+    this.assertControllable(device.deviceKey);
 
     if (action === 'ON') {
       await this.rulesService.triggerPump(deviceId, durationSeconds, 'MANUAL', userName);
@@ -168,6 +178,7 @@ export class AppService {
   async sendFanCommand(deviceId: string, action: string, userName: string) {
     const device = await this.prisma.device.findUnique({ where: { id: deviceId } });
     if (!device) throw new NotFoundException('Device not found');
+    this.assertControllable(device.deviceKey);
 
     await this.rulesService.triggerFan(deviceId, action, 'MANUAL', userName);
     return { success: true, action, deviceId };
@@ -182,6 +193,13 @@ export class AppService {
   }
 
   async updateDeviceRule(ruleId: string, data: any) {
+    const existingRule = await this.prisma.irrigationRule.findUnique({
+      where: { id: ruleId },
+      include: { device: { select: { deviceKey: true } } },
+    });
+    if (!existingRule) throw new NotFoundException('Rule not found');
+    this.assertControllable(existingRule.device.deviceKey);
+
     return this.prisma.irrigationRule.update({
       where: { id: ruleId },
       data: {
